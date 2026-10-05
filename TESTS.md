@@ -118,3 +118,21 @@ Résultat de référence actuel : **44 tests réussis sur 44**.
 - donnée sans date conservée comme fraîcheur inconnue ;
 - aucune référence ni quantité inventée si aucun résultat ;
 - plusieurs fournisseurs peuvent être retournés sans recommandation automatique.
+
+
+## Sprint G — Stock Expert QR et véhicules
+
+- code-barres identifie l'article sans mouvement automatique ;
+- code-barres inconnu refusé sans invention ;
+- unicité du code-barres entre articles actifs ;
+- QR transfert analysé sans mutation avant validation ;
+- refus d'une confirmation non humaine ;
+- confirmation QR transfert crée le vrai mouvement ;
+- QR sortie chantier conserve le chantier ;
+- QR retour chantier crée un `SITE_RETURN` ;
+- vue véhicule avec immatriculation ;
+- quantités physique / réservée / disponible par véhicule ;
+- chargement véhicule = transfert, stock total inchangé ;
+- compilation navigateur du scan caméra `BarcodeDetector`.
+
+Résultat de référence avant documentation : **68 tests réussis sur 68**.
