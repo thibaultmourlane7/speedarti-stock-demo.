@@ -8,7 +8,9 @@ export type StockErrorCode =
   | "DUPLICATE_EVENT"
   | "CONNECTOR_UNAVAILABLE"
   | "VALIDATION_REQUIRED"
-  | "INVALID_MOVEMENT";
+  | "INVALID_MOVEMENT"
+  | "INVALID_ITEM"
+  | "INVALID_LOCATION";
 
 export class StockDomainError extends Error {
   constructor(

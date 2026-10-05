@@ -9,12 +9,15 @@ import {
 
 export interface StockRepository {
   getItem(companyId: Id, productId: Id): Promise<StockItem | null>;
+  listItems(companyId: Id): Promise<StockItem[]>;
   saveItem(item: StockItem): Promise<void>;
 
   getLocation(companyId: Id, locationId: Id): Promise<StockLocation | null>;
+  listLocations(companyId: Id): Promise<StockLocation[]>;
   saveLocation(location: StockLocation): Promise<void>;
 
   listMovements(companyId: Id, productId: Id): Promise<StockMovement[]>;
+  listAllMovements(companyId: Id): Promise<StockMovement[]>;
   appendMovement(movement: StockMovement): Promise<void>;
 
   listReservations(companyId: Id, productId: Id): Promise<StockReservation[]>;

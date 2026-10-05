@@ -21,7 +21,11 @@ export class InMemoryStockRepository implements StockRepository {
   }
 
   async getItem(companyId: Id, productId: Id): Promise<StockItem | null> {
-    return this.items.get(this.key(companyId, productId)) ?? null;
+    return structuredClone(this.items.get(this.key(companyId, productId)) ?? null);
+  }
+
+  async listItems(companyId: Id): Promise<StockItem[]> {
+    return structuredClone([...this.items.values()].filter(x => x.companyId === companyId));
   }
 
   async saveItem(item: StockItem): Promise<void> {
@@ -29,7 +33,11 @@ export class InMemoryStockRepository implements StockRepository {
   }
 
   async getLocation(companyId: Id, locationId: Id): Promise<StockLocation | null> {
-    return this.locations.get(this.key(companyId, locationId)) ?? null;
+    return structuredClone(this.locations.get(this.key(companyId, locationId)) ?? null);
+  }
+
+  async listLocations(companyId: Id): Promise<StockLocation[]> {
+    return structuredClone([...this.locations.values()].filter(x => x.companyId === companyId));
   }
 
   async saveLocation(location: StockLocation): Promise<void> {
@@ -38,6 +46,10 @@ export class InMemoryStockRepository implements StockRepository {
 
   async listMovements(companyId: Id, productId: Id): Promise<StockMovement[]> {
     return structuredClone(this.movements.filter(x => x.companyId === companyId && x.productId === productId));
+  }
+
+  async listAllMovements(companyId: Id): Promise<StockMovement[]> {
+    return structuredClone(this.movements.filter(x => x.companyId === companyId));
   }
 
   async appendMovement(movement: StockMovement): Promise<void> {
