@@ -41,7 +41,7 @@ export class LocalStorageStockRepository implements StockRepository {
     try {
       const raw = this.storage.getItem(this.storageKey);
       if (!raw) return structuredClone(EMPTY);
-      const parsed = JSON.parse(raw) as Partial<StoredState> & { version?: number };
+      const parsed = JSON.parse(raw) as Partial<Omit<StoredState, "version">> & { version?: number };
 
       if (parsed.version !== 1 && parsed.version !== 2) {
         return structuredClone(EMPTY);
