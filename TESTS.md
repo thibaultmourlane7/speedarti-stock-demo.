@@ -1,4 +1,4 @@
-# Plan de tests — état Sprint B
+# Plan de tests — état Sprint C
 
 Commande :
 
@@ -34,4 +34,19 @@ npm run check
 - sortie supérieure au disponible refusée ;
 - recherche partielle insensible à la casse et aux accents.
 
-Résultat local au lancement du Sprint B : **19 tests réussis sur 19**.
+## Sprint C
+
+- transfert entre deux emplacements ;
+- le transfert conserve le total entreprise ;
+- quantité physique par emplacement ;
+- perte et casse diminuent le stock ;
+- retour chantier augmente le stock de destination ;
+- inventaire compare théorique et compté ;
+- écart d'inventaire génère un mouvement `ADJUSTMENT` ;
+- aucun mouvement si l'écart est nul ;
+- correction refusée si elle rend le stock disponible négatif face à une réservation ;
+- inventaire par emplacement ;
+- historique origine / destination / motif / chantier ;
+- compilation navigateur de l'interface Sprint C.
+
+Le résultat de référence est celui du dernier workflow GitHub Actions associé au commit Sprint C.
