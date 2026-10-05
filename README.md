@@ -102,3 +102,27 @@ Tous restent désactivés / simulés au Sprint A.
 Le futur stock fournisseur n'est **jamais additionné** au stock possédé par l'artisan.
 
 La future caméra / vision / OCR est seulement réservée dans l'architecture. Elle n'est pas développée ici.
+
+
+## État fonctionnel actuel
+
+La démo couvre maintenant :
+
+- articles, familles, références et emplacements ;
+- entrées, sorties, transferts, pertes, casse et retours chantier ;
+- inventaire et ajustements tracés ;
+- réservations chantier ;
+- besoins d'achat brouillons ;
+- conditionnements et unités secondaires calculées ;
+- alertes stock faible / rupture / écarts d'inventaire ;
+- jeu de démonstration BTP ;
+- ponts locaux de contrats Équipe & Planning / Chiffrage ;
+- persistance navigateur pour la démo.
+
+Exemples de double lecture d'un même stock :
+
+- 30 chevrons de 4 m = 120 ml ;
+- 4 boîtes de 200 vis = 800 vis ;
+- 3,85 boîtes de 200 vis = 3 boîtes complètes + 170 vis = 770 vis.
+
+Il n'existe toujours qu'une seule quantité source de vérité ; les équivalences sont calculées.
