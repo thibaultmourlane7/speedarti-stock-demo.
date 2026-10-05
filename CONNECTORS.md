@@ -113,3 +113,35 @@ Les demandes de disponibilité sont réellement calculées à partir des mouveme
 Les demandes de sortie, réservation et libération provenant d'un autre module restent des **brouillons soumis à validation humaine**. Elles ne mutent pas le Stock.
 
 Le bouton `Réapprovisionner` crée uniquement un `StockPurchaseRequirement` au statut `DRAFT`. Il ne crée pas de commande fournisseur et ne contourne pas le futur module Commandes / Achats.
+
+
+## Sprint F — Stocks fournisseurs
+
+Le sous-système fournisseur est maintenant séparé du Stock artisan dans `src/stock/suppliers/`.
+
+Contrat principal : `SupplierStockAdapter`.
+
+Un adaptateur fournisseur peut fournir :
+
+- identité fournisseur ;
+- référence fournisseur ;
+- correspondance éventuelle avec un `productId` SpeedArti ;
+- quantité disponible fournisseur ;
+- unité ;
+- prix HT éventuel ;
+- statut de disponibilité ;
+- date de dernière synchronisation ;
+- dépôt fournisseur.
+
+Le service calcule la fraîcheur de la donnée avant toute action.
+
+Les adaptateurs actuels sont exclusivement de démonstration :
+
+- `IdeaBoisDemoAdapter`
+- `GenericSupplierDemoAdapter`
+
+Une donnée fournisseur ne crée jamais de mouvement Stock.
+
+Les actions `Demander un devis` et `Préparer commande` produisent uniquement des brouillons avec `validationRequired: true`.
+
+Un futur adaptateur ERP/API remplacera l'adaptateur démo sans modifier le moteur de mouvements Stock.
