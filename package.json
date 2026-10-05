@@ -1,0 +1,11 @@
+{
+  "name": "speedarti-stock-demo",
+  "version": "0.1.0-sprint-a",
+  "private": true,
+  "description": "Fondations autonomes du futur module Stock SpeedArti. Aucun raccordement production.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/stock/tests/*.test.js",
+    "check": "npm run build && npm test"
+  }
+}
