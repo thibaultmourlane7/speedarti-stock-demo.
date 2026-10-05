@@ -17,7 +17,7 @@ export async function loadBtpDemoData(service: StockApplicationService): Promise
   }
 
   const depot = await service.initialize();
-  const camion = await service.createLocation({ name: "Camion 1", type: "vehicule" });
+  const camion = await service.createVehicle({ name: "Camion 1", registration: "DEMO-AA-123" });
 
   const chevron = await service.createItem({
     name: "Chevron pin 70 × 80 — 4 m",
@@ -27,6 +27,7 @@ export async function loadBtpDemoData(service: StockApplicationService): Promise
     locationId: depot.id,
     minimumQuantity: 8,
     internalReference: "DEMO-CH-7080",
+    barcode: "3700000000011",
     secondary: {
       mode: "length",
       secondaryUnit: "ml",
@@ -42,6 +43,7 @@ export async function loadBtpDemoData(service: StockApplicationService): Promise
     locationId: depot.id,
     minimumQuantity: 1,
     internalReference: "DEMO-VIS-580",
+    barcode: "3700000000028",
     secondary: {
       mode: "manual",
       secondaryUnit: "piece",
