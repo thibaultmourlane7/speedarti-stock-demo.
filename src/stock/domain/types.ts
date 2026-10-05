@@ -110,6 +110,7 @@ export interface StockReservation {
   sourceModule: string;
   sourceId: string | null;
   sourceEventId: string | null;
+  reason: string | null;
   createdBy: Id | null;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
