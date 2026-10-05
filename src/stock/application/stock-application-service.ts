@@ -161,6 +161,24 @@ export interface StockAlertView {
   message: string;
 }
 
+export interface CreateVehicleInput {
+  name: string;
+  registration?: string | null;
+}
+
+export interface VehicleStockLine {
+  item: StockItem;
+  snapshot: StockSnapshot;
+}
+
+export interface VehicleStockView {
+  location: StockLocation;
+  registration: string | null;
+  referenceCount: number;
+  reservedReferenceCount: number;
+  lines: VehicleStockLine[];
+}
+
 function text(value: unknown): string {
   return String(value ?? "").trim();
 }
@@ -534,6 +552,76 @@ export class StockApplicationService {
   async listLocations(): Promise<StockLocation[]> {
     const locations = await this.repository.listLocations(this.companyId);
     return locations.filter(x => x.active).sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  }
+
+  async createVehicle(input: CreateVehicleInput): Promise<StockLocation> {
+    const name = text(input.name);
+    if (!name) {
+      throw new StockDomainError("INVALID_LOCATION", "Le nom du véhicule est obligatoire.");
+    }
+    const registration = text(input.registration) || null;
+    return this.createLocation({
+      name,
+      type: "vehicule",
+      vehicleId: registration,
+    });
+  }
+
+  async listVehicleStocks(): Promise<VehicleStockView[]> {
+    const [locations, items] = await Promise.all([
+      this.listLocations(),
+      this.repository.listItems(this.companyId),
+    ]);
+    const vehicles = locations.filter(location => location.type === "vehicule" && location.active);
+
+    const views = await Promise.all(vehicles.map(async location => {
+      const lines = (await Promise.all(
+        items
+          .filter(item => item.active)
+          .map(async item => ({
+            item,
+            snapshot: await this.engine.snapshot(this.companyId, item.id, location.id),
+          })),
+      ))
+        .filter(line => Math.abs(line.snapshot.physicalQuantity) > EPSILON || Math.abs(line.snapshot.reservedQuantity) > EPSILON)
+        .sort((a, b) => a.item.name.localeCompare(b.item.name, "fr"));
+
+      return {
+        location,
+        registration: location.vehicleId ?? null,
+        referenceCount: lines.filter(line => line.snapshot.physicalQuantity > EPSILON).length,
+        reservedReferenceCount: lines.filter(line => line.snapshot.reservedQuantity > EPSILON).length,
+        lines,
+      } satisfies VehicleStockView;
+    }));
+
+    return views.sort((a, b) => a.location.name.localeCompare(b.location.name, "fr"));
+  }
+
+  async findItemByBarcode(rawCode: string): Promise<StockItem | null> {
+    const code = text(rawCode);
+    if (!code) return null;
+    const items = await this.repository.listItems(this.companyId);
+    return items.find(item => item.active && text(item.barcode) === code) ?? null;
+  }
+
+  async getItemView(productId: Id): Promise<ItemStockView> {
+    const item = await this.requireItem(productId);
+    return {
+      item,
+      snapshot: await this.engine.snapshot(this.companyId, item.id, null),
+      mainLocation: item.mainLocationId
+        ? await this.repository.getLocation(this.companyId, item.mainLocationId)
+        : null,
+    };
+  }
+
+  async getLocation(locationId: Id): Promise<StockLocation> {
+    const location = await this.repository.getLocation(this.companyId, locationId);
+    if (!location || !location.active) {
+      throw new StockDomainError("LOCATION_NOT_FOUND", "Emplacement Stock introuvable.", { locationId });
+    }
+    return location;
   }
 
   async listItemViews(search = ""): Promise<ItemStockView[]> {
