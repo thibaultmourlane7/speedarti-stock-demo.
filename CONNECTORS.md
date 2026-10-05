@@ -96,3 +96,20 @@ Lecture uniquement :
 - valeur éventuelle transmise selon règles comptables validées.
 
 Pilotage ne peut pas créer un mouvement Stock.
+
+
+## Sprint D — pont fonctionnel local
+
+Le fichier `src/stock/integrations/stock-integration-service.ts` exécute désormais les contrats suivants **contre le moteur Stock de la démo**, sans contacter aucun service réel :
+
+- `team_planning.material.availability.requested` → `stock.availability.response` ;
+- `team_planning.stock_exit.draft.requested` → `stock.exit.draft.ready` ;
+- `chiffrage.stock.availability.requested` → `stock.availability.response` ;
+- `chiffrage.stock.reservation.requested` → `stock.reservation.draft.ready` ;
+- `chiffrage.stock.reservation.release.requested` → `stock.reservation_release.draft.ready`.
+
+Les demandes de disponibilité sont réellement calculées à partir des mouvements et réservations de la démo.
+
+Les demandes de sortie, réservation et libération provenant d'un autre module restent des **brouillons soumis à validation humaine**. Elles ne mutent pas le Stock.
+
+Le bouton `Réapprovisionner` crée uniquement un `StockPurchaseRequirement` au statut `DRAFT`. Il ne crée pas de commande fournisseur et ne contourne pas le futur module Commandes / Achats.
