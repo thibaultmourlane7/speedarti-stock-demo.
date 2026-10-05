@@ -97,6 +97,23 @@ export class IdeaBoisDemoAdapter extends DemoSupplierAdapter {
         source: "demo",
         isDemo: true,
       },
+      {
+        supplierId: this.supplierId,
+        supplierName: this.supplierName,
+        supplierProductId: "idea-demo-004",
+        supplierReference: "DEMO-IB-EXOT-01",
+        productId: null,
+        designation: "Lame terrasse exotique — exemple",
+        availableQuantity: 0,
+        unit: "piece",
+        priceHt: null,
+        stockStatus: "OUT_OF_STOCK",
+        lastSyncAt: sync,
+        depotId: "demo-depot-1",
+        depotName: "Dépôt démo",
+        source: "demo",
+        isDemo: true,
+      },
     ];
   }
 }
