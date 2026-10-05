@@ -4,26 +4,29 @@ import {
   StockLocation,
   StockMovement,
   StockOffcut,
+  StockPurchaseRequirement,
   StockReservation,
 } from "../domain/types";
 import { StockRepository } from "./stock-repository";
 
 interface StoredState {
-  version: 1;
+  version: 2;
   items: StockItem[];
   locations: StockLocation[];
   movements: StockMovement[];
   reservations: StockReservation[];
+  purchaseRequirements: StockPurchaseRequirement[];
   sourceEvents: string[];
   offcuts: StockOffcut[];
 }
 
 const EMPTY: StoredState = {
-  version: 1,
+  version: 2,
   items: [],
   locations: [],
   movements: [],
   reservations: [],
+  purchaseRequirements: [],
   sourceEvents: [],
   offcuts: [],
 };
@@ -38,14 +41,19 @@ export class LocalStorageStockRepository implements StockRepository {
     try {
       const raw = this.storage.getItem(this.storageKey);
       if (!raw) return structuredClone(EMPTY);
-      const parsed = JSON.parse(raw) as StoredState;
-      if (parsed.version !== 1) return structuredClone(EMPTY);
+      const parsed = JSON.parse(raw) as Partial<StoredState> & { version?: number };
+
+      if (parsed.version !== 1 && parsed.version !== 2) {
+        return structuredClone(EMPTY);
+      }
+
       return {
-        version: 1,
+        version: 2,
         items: Array.isArray(parsed.items) ? parsed.items : [],
         locations: Array.isArray(parsed.locations) ? parsed.locations : [],
         movements: Array.isArray(parsed.movements) ? parsed.movements : [],
         reservations: Array.isArray(parsed.reservations) ? parsed.reservations : [],
+        purchaseRequirements: Array.isArray(parsed.purchaseRequirements) ? parsed.purchaseRequirements : [],
         sourceEvents: Array.isArray(parsed.sourceEvents) ? parsed.sourceEvents : [],
         offcuts: Array.isArray(parsed.offcuts) ? parsed.offcuts : [],
       };
@@ -105,18 +113,42 @@ export class LocalStorageStockRepository implements StockRepository {
   }
 
   async listReservations(companyId: Id, productId: Id): Promise<StockReservation[]> {
-    return structuredClone(this.load().reservations.filter(x => x.companyId === companyId && x.productId === productId));
+    return structuredClone(this.load().reservations.filter(
+      x => x.companyId === companyId && x.productId === productId,
+    ));
+  }
+
+  async listAllReservations(companyId: Id): Promise<StockReservation[]> {
+    return structuredClone(this.load().reservations.filter(x => x.companyId === companyId));
   }
 
   async getReservation(companyId: Id, reservationId: Id): Promise<StockReservation | null> {
-    return structuredClone(this.load().reservations.find(x => x.companyId === companyId && x.id === reservationId) ?? null);
+    return structuredClone(this.load().reservations.find(
+      x => x.companyId === companyId && x.id === reservationId,
+    ) ?? null);
   }
 
   async saveReservation(reservation: StockReservation): Promise<void> {
     const state = this.load();
-    const index = state.reservations.findIndex(x => x.companyId === reservation.companyId && x.id === reservation.id);
+    const index = state.reservations.findIndex(
+      x => x.companyId === reservation.companyId && x.id === reservation.id,
+    );
     if (index >= 0) state.reservations[index] = structuredClone(reservation);
     else state.reservations.push(structuredClone(reservation));
+    this.save(state);
+  }
+
+  async listPurchaseRequirements(companyId: Id): Promise<StockPurchaseRequirement[]> {
+    return structuredClone(this.load().purchaseRequirements.filter(x => x.companyId === companyId));
+  }
+
+  async savePurchaseRequirement(requirement: StockPurchaseRequirement): Promise<void> {
+    const state = this.load();
+    const index = state.purchaseRequirements.findIndex(
+      x => x.companyId === requirement.companyId && x.id === requirement.id,
+    );
+    if (index >= 0) state.purchaseRequirements[index] = structuredClone(requirement);
+    else state.purchaseRequirements.push(structuredClone(requirement));
     this.save(state);
   }
 
@@ -132,7 +164,9 @@ export class LocalStorageStockRepository implements StockRepository {
   }
 
   async listOffcuts(companyId: Id, productId?: Id): Promise<StockOffcut[]> {
-    return structuredClone(this.load().offcuts.filter(x => x.companyId === companyId && (!productId || x.productId === productId)));
+    return structuredClone(this.load().offcuts.filter(
+      x => x.companyId === companyId && (!productId || x.productId === productId),
+    ));
   }
 
   async saveOffcut(offcut: StockOffcut): Promise<void> {
