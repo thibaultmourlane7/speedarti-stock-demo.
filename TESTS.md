@@ -50,3 +50,21 @@ npm run check
 - compilation navigateur de l'interface Sprint C.
 
 Le résultat de référence est celui du dernier workflow GitHub Actions associé au commit Sprint C.
+
+
+## Sprint D
+
+- réservation diminue le disponible sans diminuer le physique ;
+- libération de réservation restitue le disponible ;
+- réservation supérieure au disponible refusée ;
+- chantier obligatoire pour une réservation créée depuis l'interface ;
+- motif de réservation conservé ;
+- besoin d'achat brouillon sans mouvement Stock ;
+- quantité de réapprovisionnement nulle refusée ;
+- disponibilité Équipe & Planning calculée depuis le moteur réel de la démo ;
+- sortie demandée par Équipe & Planning reste un brouillon sans mouvement ;
+- réservation demandée par Chiffrage reste un brouillon sans réservation automatique ;
+- migration du stockage local v1 vers v2 sans perte des données existantes ;
+- compilation navigateur des nouveaux écrans réservations / achats.
+
+Le résultat de référence est celui du dernier workflow GitHub Actions du Sprint D.
