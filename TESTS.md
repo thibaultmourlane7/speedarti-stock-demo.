@@ -92,3 +92,18 @@ Le résultat de référence est celui du dernier workflow GitHub Actions du Spri
 - responsive conservé via les règles mobile/tablette du CSS.
 
 Résultat de référence actuel : **44 tests réussis sur 44**.
+
+
+## Sprint F — Stocks fournisseurs
+
+- séparation disponibilité fournisseur / stock artisan ;
+- recherche par désignation et référence ;
+- recherche multi-fournisseur ;
+- plusieurs références fournisseur pour un même produit SpeedArti ;
+- statuts disponible, faible, rupture, sur commande et inconnu ;
+- fraîcheur de synchronisation ;
+- donnée périmée détectée ;
+- fournisseur indisponible ignoré sans bloquer les autres ;
+- brouillon devis soumis à validation ;
+- brouillon commande destiné à Commandes / Achats ;
+- aucune mutation du stock artisan lors d'une recherche fournisseur.
