@@ -5,6 +5,7 @@ import { secondaryQuantityView } from "../core/stock-conversion";
 import { StockItem, StockLocation, StockMovementType, StockSecondaryDefinition, StockUnit } from "../domain/types";
 import { loadBtpDemoData } from "../demo/demo-data";
 import { LocalStorageStockRepository } from "../repositories/local-storage-stock-repository";
+import { ExpertScanDraft, StockExpertScanService } from "../expert/scan-service";
 import { GenericSupplierDemoAdapter, IdeaBoisDemoAdapter } from "../suppliers/demo-adapters";
 import { SupplierStockService } from "../suppliers/supplier-service";
 import { SupplierActionDraft, SupplierAvailabilityView, SupplierStockStatus } from "../suppliers/types";
@@ -17,6 +18,7 @@ const supplierService = new SupplierStockService();
 supplierService.register(new IdeaBoisDemoAdapter());
 supplierService.register(new GenericSupplierDemoAdapter());
 const angelSupplierService = new AngelSupplierSearchService(supplierService);
+const expertScanService = new StockExpertScanService(service);
 
 const $ = <T extends Element>(selector: string): T => {
   const element = document.querySelector(selector);
@@ -37,6 +39,9 @@ const MOVEMENT_LABELS: Record<StockMovementType, string> = {
 let search = "";
 let supplierSearch = "";
 let lastSupplierDraft: SupplierActionDraft | null = null;
+let currentScanDraft: ExpertScanDraft | null = null;
+let expertCameraStream: MediaStream | null = null;
+let expertCameraFrame = 0;
 let toastTimer: number | null = null;
 
 function quantity(value: number): string {
@@ -390,6 +395,228 @@ async function renderSuppliers(): Promise<void> {
   });
 }
 
+
+async function fillExpertSelects(): Promise<void> {
+  const [views, locations, vehicles] = await Promise.all([
+    service.listItemViews(),
+    service.listLocations(),
+    service.listVehicleStocks(),
+  ]);
+
+  const itemOptions = views.map(view =>
+    `<option value="${escapeHtml(view.item.id)}">${escapeHtml(view.item.name)}</option>`
+  ).join("");
+  for (const id of ["vehicle-load-product", "expert-qr-product"]) {
+    const select = document.getElementById(id) as HTMLSelectElement | null;
+    if (select) select.innerHTML = itemOptions;
+  }
+
+  const locationOptions = locations.map(location =>
+    `<option value="${escapeHtml(location.id)}">${escapeHtml(location.name)}</option>`
+  ).join("");
+  for (const id of ["expert-qr-from", "expert-qr-to"]) {
+    const select = document.getElementById(id) as HTMLSelectElement | null;
+    if (select) select.innerHTML = `<option value="">—</option>${locationOptions}`;
+  }
+
+  const vehicleSelect = document.getElementById("vehicle-load-vehicle") as HTMLSelectElement | null;
+  if (vehicleSelect) {
+    vehicleSelect.innerHTML = vehicles.length
+      ? vehicles.map(vehicle => `<option value="${escapeHtml(vehicle.location.id)}">${escapeHtml(vehicle.location.name)}${vehicle.registration ? ` · ${escapeHtml(vehicle.registration)}` : ""}</option>`).join("")
+      : `<option value="">Aucun véhicule</option>`;
+  }
+
+  const loadProduct = document.getElementById("vehicle-load-product") as HTMLSelectElement | null;
+  if (loadProduct && loadProduct.value) {
+    const view = views.find(row => row.item.id === loadProduct.value);
+    const unitSelect = document.getElementById("vehicle-load-unit") as HTMLSelectElement | null;
+    if (view && unitSelect) setUnitOptions(unitSelect, view.item);
+  }
+
+  const qrProduct = document.getElementById("expert-qr-product") as HTMLSelectElement | null;
+  if (qrProduct && qrProduct.value) {
+    const view = views.find(row => row.item.id === qrProduct.value);
+    const unitSelect = document.getElementById("expert-qr-unit") as HTMLSelectElement | null;
+    if (view && unitSelect) setUnitOptions(unitSelect, view.item);
+  }
+}
+
+async function renderVehicles(): Promise<void> {
+  const vehicles = await service.listVehicleStocks();
+  const list = $("#vehicle-stock-list") as HTMLDivElement;
+  if (!vehicles.length) {
+    list.innerHTML = `<div class="empty"><strong>Aucun véhicule</strong><span>Créez un véhicule pour gérer son stock séparément.</span></div>`;
+    return;
+  }
+
+  list.innerHTML = vehicles.map(vehicle => `
+    <article class="vehicle-card" data-vehicle-id="${escapeHtml(vehicle.location.id)}">
+      <div class="vehicle-card-head">
+        <div>
+          <strong>${escapeHtml(vehicle.location.name)}</strong>
+          <span>${vehicle.registration ? escapeHtml(vehicle.registration) : "Immatriculation non renseignée"} · ${vehicle.referenceCount} référence${vehicle.referenceCount > 1 ? "s" : ""}</span>
+        </div>
+        <span class="badge ${vehicle.reservedReferenceCount > 0 ? "low" : "good"}">${vehicle.reservedReferenceCount} réservée${vehicle.reservedReferenceCount > 1 ? "s" : ""}</span>
+      </div>
+      <div class="vehicle-lines">
+        ${vehicle.lines.length ? vehicle.lines.map(line => {
+          const display = stockQuantityLines(line.item, line.snapshot.physicalQuantity);
+          const available = stockQuantityLines(line.item, line.snapshot.availableQuantity);
+          return `<div class="vehicle-line" data-product-id="${escapeHtml(line.item.id)}">
+            <div><strong>${escapeHtml(line.item.name)}</strong><span>${escapeHtml(display.main)}${display.secondary ? ` · ${escapeHtml(display.secondary)}` : ""} · disponible ${escapeHtml(available.main)}</span></div>
+            <div class="vehicle-line-actions">
+              <button class="button ghost small" data-vehicle-action="return">Retour dépôt</button>
+              <button class="button danger-soft small" data-vehicle-action="site-exit">Sortie chantier</button>
+            </div>
+          </div>`;
+        }).join("") : `<div class="empty compact-empty"><strong>Véhicule vide</strong><span>Chargez du matériel depuis le dépôt principal.</span></div>`}
+      </div>
+    </article>
+  `).join("");
+
+  list.querySelectorAll<HTMLButtonElement>("[data-vehicle-action]").forEach(button => {
+    button.addEventListener("click", async () => {
+      const line = button.closest<HTMLElement>("[data-product-id]");
+      const card = button.closest<HTMLElement>("[data-vehicle-id]");
+      const productId = line?.dataset.productId;
+      const vehicleId = card?.dataset.vehicleId;
+      if (!productId || !vehicleId) return;
+
+      if (button.dataset.vehicleAction === "return") {
+        await openTransfer(productId);
+        const form = $("#transfer-form") as HTMLFormElement;
+        const depot = (await service.listLocations()).find(location => location.name === "Dépôt principal");
+        (form.elements.namedItem("fromLocationId") as HTMLSelectElement).value = vehicleId;
+        if (depot) (form.elements.namedItem("toLocationId") as HTMLSelectElement).value = depot.id;
+        (form.elements.namedItem("reason") as HTMLInputElement).value = "Retour véhicule vers dépôt";
+      } else {
+        await openMovement(productId, "exit");
+        const form = $("#movement-form") as HTMLFormElement;
+        (form.elements.namedItem("locationId") as HTMLSelectElement).value = vehicleId;
+        (form.elements.namedItem("reason") as HTMLInputElement).value = "Sortie depuis véhicule pour chantier";
+      }
+    });
+  });
+}
+
+function scanActionLabel(action: ExpertScanDraft["action"]): string {
+  return ({
+    SELECT_PRODUCT: "Article identifié",
+    ENTRY: "Entrée",
+    EXIT: "Sortie",
+    TRANSFER: "Transfert",
+    SITE_RETURN: "Retour chantier",
+  })[action];
+}
+
+function renderScanDraft(draft: ExpertScanDraft): void {
+  const box = $("#expert-scan-result") as HTMLDivElement;
+  box.hidden = false;
+  const source = draft.sourceKind === "BARCODE" ? "Code-barres" : "QR SpeedArti";
+  const location = draft.action === "TRANSFER"
+    ? `${draft.locationFrom?.name ?? "?"} → ${draft.locationTo?.name ?? "?"}`
+    : draft.locationTo?.name ?? draft.locationFrom?.name ?? "À choisir";
+  box.innerHTML = `
+    <div class="scan-result-head"><div><span class="eyebrow">${source}</span><strong>${escapeHtml(draft.item.name)}</strong></div><span class="badge info">${scanActionLabel(draft.action)}</span></div>
+    <div class="scan-result-grid">
+      <span>Quantité<strong>${draft.quantity === null ? "À saisir" : `${quantity(draft.quantity)} ${unitLabel(draft.unit, draft.quantity)}`}</strong></span>
+      <span>Emplacement<strong>${escapeHtml(location)}</strong></span>
+      <span>Chantier<strong>${escapeHtml(draft.chantierId ?? "Non renseigné")}</strong></span>
+    </div>
+    <p>${escapeHtml(draft.message)}</p>
+    <div class="scan-result-actions">
+      ${draft.action === "SELECT_PRODUCT" ? `
+        <button class="button secondary small" data-scan-product-action="entry">Entrée</button>
+        <button class="button danger-soft small" data-scan-product-action="exit">Sortie</button>
+        <button class="button ghost small" data-scan-product-action="transfer">Transfert</button>
+      ` : `<button id="expert-scan-confirm" class="button primary">Confirmer l'action</button>`}
+    </div>
+    <small>Validation humaine obligatoire : le scan seul ne modifie jamais le Stock.</small>
+  `;
+
+  box.querySelectorAll<HTMLButtonElement>("[data-scan-product-action]").forEach(button => {
+    button.addEventListener("click", async () => {
+      const action = button.dataset.scanProductAction;
+      if (action === "entry" || action === "exit") await openMovement(draft.item.id, action);
+      else await openTransfer(draft.item.id);
+    });
+  });
+
+  const confirm = box.querySelector<HTMLButtonElement>("#expert-scan-confirm");
+  confirm?.addEventListener("click", async () => {
+    try {
+      await expertScanService.confirm(draft, true);
+      currentScanDraft = null;
+      box.innerHTML = `<div class="success-box"><strong>Action confirmée</strong><span>Le mouvement a été enregistré et tracé.</span></div>`;
+      showToast("Mouvement Stock confirmé après scan.");
+      await refresh();
+    } catch (error) {
+      showToast(explainError(error), true);
+    }
+  });
+}
+
+async function analyzeExpertCode(raw: string): Promise<void> {
+  currentScanDraft = await expertScanService.resolve(raw);
+  renderScanDraft(currentScanDraft);
+}
+
+function stopExpertCamera(): void {
+  expertCameraFrame += 1;
+  expertCameraStream?.getTracks().forEach(track => track.stop());
+  expertCameraStream = null;
+  const wrap = document.getElementById("expert-camera-wrap") as HTMLElement | null;
+  const video = document.getElementById("expert-camera-video") as HTMLVideoElement | null;
+  if (video) video.srcObject = null;
+  if (wrap) wrap.hidden = true;
+  const stop = document.getElementById("expert-camera-stop") as HTMLButtonElement | null;
+  if (stop) stop.hidden = true;
+}
+
+async function startExpertCamera(): Promise<void> {
+  const BarcodeDetectorCtor = (window as unknown as { BarcodeDetector?: new (options?: { formats?: string[] }) => { detect(source: CanvasImageSource): Promise<Array<{ rawValue?: string }>> } }).BarcodeDetector;
+  if (!BarcodeDetectorCtor || !navigator.mediaDevices?.getUserMedia) {
+    showToast("Le scan caméra natif n'est pas disponible sur ce navigateur. Utilisez un lecteur code-barres ou collez le code.", true);
+    return;
+  }
+
+  stopExpertCamera();
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: "environment" } },
+    audio: false,
+  });
+  expertCameraStream = stream;
+  const video = $("#expert-camera-video") as HTMLVideoElement;
+  const wrap = $("#expert-camera-wrap") as HTMLElement;
+  const stop = $("#expert-camera-stop") as HTMLButtonElement;
+  video.srcObject = stream;
+  wrap.hidden = false;
+  stop.hidden = false;
+  await video.play();
+
+  const detector = new BarcodeDetectorCtor({ formats: ["qr_code", "ean_13", "ean_8", "code_128"] });
+  const frameId = ++expertCameraFrame;
+
+  const loop = async () => {
+    if (frameId !== expertCameraFrame || !expertCameraStream) return;
+    try {
+      const results = await detector.detect(video);
+      const raw = results.find(result => result.rawValue)?.rawValue?.trim();
+      if (raw) {
+        const input = $("#expert-scan-input") as HTMLInputElement;
+        input.value = raw;
+        stopExpertCamera();
+        await analyzeExpertCode(raw);
+        return;
+      }
+    } catch {
+      // La caméra continue : une frame illisible n'est pas une erreur métier.
+    }
+    window.setTimeout(() => { void loop(); }, 250);
+  };
+  await loop();
+}
+
 async function renderHistory(): Promise<void> {
   const rows = await service.movementHistory();
   const list = $("#history-list") as HTMLDivElement;
@@ -519,7 +746,8 @@ async function renderInventory(): Promise<void> {
 
 async function refresh(): Promise<void> {
   await fillLocationSelects();
-  await Promise.all([renderDashboard(), renderStock(), renderAlerts(), renderSuppliers(), renderHistory(), renderLocations(), renderInventory(), renderReservationsAndNeeds()]);
+  await fillExpertSelects();
+  await Promise.all([renderDashboard(), renderStock(), renderAlerts(), renderSuppliers(), renderHistory(), renderLocations(), renderInventory(), renderReservationsAndNeeds(), renderVehicles()]);
 }
 
 async function openMovement(productId: string, mode: "entry" | "exit"): Promise<void> {
@@ -750,6 +978,98 @@ function wireSupplierSearch(): void {
   });
 }
 
+function wireExpert(): void {
+  const scanForm = $("#expert-scan-form") as HTMLFormElement;
+  scanForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    const data = new FormData(scanForm);
+    try {
+      await analyzeExpertCode(String(data.get("code") ?? ""));
+    } catch (error) {
+      currentScanDraft = null;
+      showToast(explainError(error), true);
+    }
+  });
+
+  $("#expert-camera-button").addEventListener("click", () => {
+    void startExpertCamera().catch(error => showToast(explainError(error), true));
+  });
+  $("#expert-camera-stop").addEventListener("click", () => stopExpertCamera());
+
+  const createVehicleForm = $("#vehicle-create-form") as HTMLFormElement;
+  createVehicleForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    const data = new FormData(createVehicleForm);
+    try {
+      await service.createVehicle({
+        name: String(data.get("name") ?? ""),
+        registration: String(data.get("registration") ?? "").trim() || null,
+      });
+      createVehicleForm.reset();
+      showToast("Véhicule ajouté au Stock.");
+      await refresh();
+    } catch (error) {
+      showToast(explainError(error), true);
+    }
+  });
+
+  const loadForm = $("#vehicle-load-form") as HTMLFormElement;
+  const loadProduct = $("#vehicle-load-product") as HTMLSelectElement;
+  loadProduct.addEventListener("change", async () => {
+    const view = (await service.listItemViews()).find(row => row.item.id === loadProduct.value);
+    if (view) setUnitOptions($("#vehicle-load-unit") as HTMLSelectElement, view.item);
+  });
+  loadForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    const data = new FormData(loadForm);
+    try {
+      const depot = (await service.listLocations()).find(location => location.name === "Dépôt principal");
+      if (!depot) throw new StockDomainError("LOCATION_NOT_FOUND", "Dépôt principal introuvable.");
+      const vehicleId = String(data.get("vehicleId") ?? "");
+      if (!vehicleId) throw new StockDomainError("LOCATION_NOT_FOUND", "Créez d'abord un véhicule.");
+      await service.transferStock({
+        productId: String(data.get("productId") ?? ""),
+        quantity: Number(data.get("quantity") ?? 0),
+        unit: String(data.get("unit") ?? "piece") as StockUnit,
+        fromLocationId: depot.id,
+        toLocationId: vehicleId,
+        reason: "Chargement véhicule",
+      });
+      showToast("Véhicule chargé depuis le dépôt.");
+      await refresh();
+    } catch (error) {
+      showToast(explainError(error), true);
+    }
+  });
+
+  const qrForm = $("#expert-qr-form") as HTMLFormElement;
+  const qrProduct = $("#expert-qr-product") as HTMLSelectElement;
+  qrProduct.addEventListener("change", async () => {
+    const view = (await service.listItemViews()).find(row => row.item.id === qrProduct.value);
+    if (view) setUnitOptions($("#expert-qr-unit") as HTMLSelectElement, view.item);
+  });
+  qrForm.addEventListener("submit", event => {
+    event.preventDefault();
+    const data = new FormData(qrForm);
+    try {
+      const payload = expertScanService.createQrPayload({
+        productId: String(data.get("productId") ?? ""),
+        action: String(data.get("action") ?? "ENTRY") as "ENTRY" | "EXIT" | "TRANSFER" | "SITE_RETURN",
+        quantity: Number(data.get("quantity") ?? 0),
+        unit: String(data.get("unit") ?? "piece") as StockUnit,
+        locationFromId: String(data.get("fromLocationId") ?? "") || null,
+        locationToId: String(data.get("toLocationId") ?? "") || null,
+        chantierId: String(data.get("chantierId") ?? "").trim() || null,
+      });
+      const output = $("#expert-qr-output") as HTMLDivElement;
+      output.hidden = false;
+      output.innerHTML = `<strong>Contenu du QR SpeedArti</strong><code>${escapeHtml(payload)}</code><small>Ce payload prépare seulement un brouillon au scan. Une confirmation humaine reste obligatoire.</small>`;
+    } catch (error) {
+      showToast(explainError(error), true);
+    }
+  });
+}
+
 function wireSearch(): void {
   const input=$("#search-input") as HTMLInputElement;
   input.addEventListener("input",async()=>{search=input.value;await renderStock();});
@@ -760,5 +1080,5 @@ function wireInventory(): void {
   $("#refresh-inventory-button").addEventListener("click",()=>{void renderInventory();});
 }
 
-async function main():Promise<void>{wireTabs();wireDialogs();wireForms();wireSecondaryFields();wireDemoData();wireAngelSupplier();wireSupplierSearch();wireSearch();wireInventory();await service.initialize();await refresh();}
+async function main():Promise<void>{wireTabs();wireDialogs();wireForms();wireSecondaryFields();wireDemoData();wireAngelSupplier();wireSupplierSearch();wireExpert();wireSearch();wireInventory();await service.initialize();await refresh();}
 main().catch(error=>{showToast(explainError(error),true);console.error(error);});
