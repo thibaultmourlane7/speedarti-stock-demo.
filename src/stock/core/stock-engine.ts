@@ -130,6 +130,7 @@ export interface ReservationCommand {
   sourceModule: string;
   sourceId?: string | null;
   sourceEventId?: string | null;
+  reason?: string | null;
 }
 
 export class StockEngine {
@@ -251,6 +252,7 @@ export class StockEngine {
       sourceModule: command.sourceModule,
       sourceId: command.sourceId ?? null,
       sourceEventId: command.sourceEventId ?? null,
+      reason: command.reason ?? null,
       createdBy: command.userId ?? null,
       createdAt: at,
       updatedAt: at,
