@@ -4,11 +4,17 @@ import { secondaryQuantityView } from "../core/stock-conversion";
 import { StockItem, StockLocation, StockMovementType, StockSecondaryDefinition, StockUnit } from "../domain/types";
 import { loadBtpDemoData } from "../demo/demo-data";
 import { LocalStorageStockRepository } from "../repositories/local-storage-stock-repository";
+import { GenericSupplierDemoAdapter, IdeaBoisDemoAdapter } from "../suppliers/demo-adapters";
+import { SupplierStockService } from "../suppliers/supplier-service";
+import { SupplierActionDraft, SupplierAvailabilityView, SupplierStockStatus } from "../suppliers/types";
 
 const COMPANY_ID = "demo-company";
 const USER_ID = "demo-user";
 const repository = new LocalStorageStockRepository(window.localStorage);
 const service = new StockApplicationService(repository, COMPANY_ID, USER_ID);
+const supplierService = new SupplierStockService();
+supplierService.register(new IdeaBoisDemoAdapter());
+supplierService.register(new GenericSupplierDemoAdapter());
 
 const $ = <T extends Element>(selector: string): T => {
   const element = document.querySelector(selector);
@@ -27,6 +33,8 @@ const MOVEMENT_LABELS: Record<StockMovementType, string> = {
 };
 
 let search = "";
+let supplierSearch = "";
+let lastSupplierDraft: SupplierActionDraft | null = null;
 let toastTimer: number | null = null;
 
 function quantity(value: number): string {
@@ -126,6 +134,44 @@ function statusBadge(status: string): string {
   if (status === "OUT_OF_STOCK") return `<span class="badge out">Rupture</span>`;
   if (status === "LOW_STOCK") return `<span class="badge low">Stock faible</span>`;
   return `<span class="badge good">Disponible</span>`;
+}
+
+function supplierStatus(status: SupplierStockStatus): { label: string; css: string } {
+  return ({
+    AVAILABLE: { label: "Disponible", css: "good" },
+    LOW_STOCK: { label: "Stock faible", css: "low" },
+    OUT_OF_STOCK: { label: "Rupture", css: "out" },
+    ON_ORDER: { label: "Sur commande", css: "info" },
+    UNKNOWN: { label: "Inconnu", css: "neutral" },
+  })[status];
+}
+
+function supplierFreshness(row: SupplierAvailabilityView): string {
+  if (row.freshness === "FRESH") return row.ageMinutes === 0 ? "Synchronisé à l'instant" : `Synchronisé il y a ${row.ageMinutes} min`;
+  if (row.freshness === "STALE") return `Donnée périmée · ${row.ageMinutes ?? "?"} min`;
+  return "Date de synchronisation inconnue";
+}
+
+function euro(value: number): string {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(value);
+}
+
+function renderSupplierDraft(): void {
+  const box = $("#supplier-draft") as HTMLDivElement;
+  if (!lastSupplierDraft) {
+    box.innerHTML = "";
+    box.hidden = true;
+    return;
+  }
+
+  box.hidden = false;
+  box.innerHTML = `
+    <div>
+      <strong>${lastSupplierDraft.type === "ORDER_REQUEST" ? "Brouillon de commande préparé" : "Demande de devis préparée"}</strong>
+      <span>${escapeHtml(lastSupplierDraft.supplierName)} · ${escapeHtml(lastSupplierDraft.designation)} · ${quantity(lastSupplierDraft.quantity)} ${unitLabel(lastSupplierDraft.unit, lastSupplierDraft.quantity)}</span>
+    </div>
+    <span class="badge info">Validation humaine obligatoire</span>
+  `;
 }
 
 async function fillLocationSelects(): Promise<void> {
@@ -237,6 +283,76 @@ async function renderAlerts(): Promise<void> {
       <div class="alert-qty">${escapeHtml(display.main)}${display.secondary ? `<small>${escapeHtml(display.secondary)}</small>` : ""}</div>
     </article>`;
   }).join("");
+}
+
+
+async function renderSuppliers(): Promise<void> {
+  const rows = await supplierService.search(supplierSearch);
+  const list = $("#supplier-list") as HTMLDivElement;
+  renderSupplierDraft();
+
+  if (!rows.length) {
+    list.innerHTML = `<div class="empty"><strong>Aucune disponibilité fournisseur trouvée</strong><span>Essayez une autre désignation ou référence.</span></div>`;
+    return;
+  }
+
+  list.innerHTML = rows.map((row, index) => {
+    const status = supplierStatus(row.stockStatus);
+    const available = row.availableQuantity === null
+      ? "Quantité non communiquée"
+      : `${quantity(row.availableQuantity)} ${unitLabel(row.unit, row.availableQuantity)}`;
+    const price = row.priceHt === null ? "Prix non communiqué" : `${euro(row.priceHt)} HT / ${unitLabel(row.unit, 1)}`;
+
+    return `
+      <article class="supplier-card" data-supplier-index="${index}">
+        <div class="supplier-card-head">
+          <div>
+            <span class="supplier-name">${escapeHtml(row.supplierName)}</span>
+            <h3>${escapeHtml(row.designation)}</h3>
+          </div>
+          <span class="badge ${status.css}">${status.label}</span>
+        </div>
+        <div class="supplier-meta">
+          <span>Réf. ${escapeHtml(row.supplierReference)}</span>
+          <span>${escapeHtml(row.depotName ?? "Dépôt non renseigné")}</span>
+          <span>${escapeHtml(supplierFreshness(row))}</span>
+        </div>
+        <div class="supplier-availability">
+          <div><span>Disponibilité fournisseur</span><strong>${escapeHtml(available)}</strong></div>
+          <div><span>Prix</span><strong>${escapeHtml(price)}</strong></div>
+        </div>
+        <div class="supplier-actions">
+          <label>Quantité<input type="number" min="0.000001" step="any" value="1" data-supplier-quantity></label>
+          <button class="button ghost small" data-supplier-action="quote">Demander un devis</button>
+          <button class="button secondary small" data-supplier-action="order">Préparer commande</button>
+        </div>
+        ${row.isDemo ? `<div class="demo-watermark">Données de démonstration — aucune donnée ERP réelle</div>` : ""}
+      </article>
+    `;
+  }).join("");
+
+  list.querySelectorAll<HTMLElement>("[data-supplier-index]").forEach(card => {
+    const index = Number(card.dataset.supplierIndex ?? -1);
+    const row = rows[index];
+    if (!row) return;
+    const input = card.querySelector<HTMLInputElement>("[data-supplier-quantity]");
+    card.querySelectorAll<HTMLButtonElement>("[data-supplier-action]").forEach(button => {
+      button.addEventListener("click", () => {
+        try {
+          const requested = Number(input?.value ?? 0);
+          lastSupplierDraft = button.dataset.supplierAction === "order"
+            ? supplierService.prepareOrderDraft(row, requested)
+            : supplierService.prepareQuoteDraft(row, requested);
+          renderSupplierDraft();
+          showToast(button.dataset.supplierAction === "order"
+            ? "Brouillon envoyé vers le futur circuit Commandes / Achats. Aucune commande réelle créée."
+            : "Demande de devis préparée. Aucun envoi fournisseur réel.");
+        } catch (error) {
+          showToast(explainError(error), true);
+        }
+      });
+    });
+  });
 }
 
 async function renderHistory(): Promise<void> {
@@ -368,7 +484,7 @@ async function renderInventory(): Promise<void> {
 
 async function refresh(): Promise<void> {
   await fillLocationSelects();
-  await Promise.all([renderDashboard(), renderStock(), renderAlerts(), renderHistory(), renderLocations(), renderInventory(), renderReservationsAndNeeds()]);
+  await Promise.all([renderDashboard(), renderStock(), renderAlerts(), renderSuppliers(), renderHistory(), renderLocations(), renderInventory(), renderReservationsAndNeeds()]);
 }
 
 async function openMovement(productId: string, mode: "entry" | "exit"): Promise<void> {
@@ -573,6 +689,14 @@ function wireDemoData(): void {
   });
 }
 
+function wireSupplierSearch(): void {
+  const input = $("#supplier-search-input") as HTMLInputElement;
+  input.addEventListener("input", async () => {
+    supplierSearch = input.value;
+    await renderSuppliers();
+  });
+}
+
 function wireSearch(): void {
   const input=$("#search-input") as HTMLInputElement;
   input.addEventListener("input",async()=>{search=input.value;await renderStock();});
@@ -583,5 +707,5 @@ function wireInventory(): void {
   $("#refresh-inventory-button").addEventListener("click",()=>{void renderInventory();});
 }
 
-async function main():Promise<void>{wireTabs();wireDialogs();wireForms();wireSecondaryFields();wireDemoData();wireSearch();wireInventory();await service.initialize();await refresh();}
+async function main():Promise<void>{wireTabs();wireDialogs();wireForms();wireSecondaryFields();wireDemoData();wireSupplierSearch();wireSearch();wireInventory();await service.initialize();await refresh();}
 main().catch(error=>{showToast(explainError(error),true);console.error(error);});
