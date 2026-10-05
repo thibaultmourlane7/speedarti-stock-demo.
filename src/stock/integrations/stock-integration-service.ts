@@ -37,21 +37,21 @@ export class StockIntegrationService {
     this.engine = new StockEngine(repository, now, id);
   }
 
-  async handle(envelope: IntegrationEnvelope): Promise<IntegrationEnvelope> {
+  async handle(envelope: IntegrationEnvelope<object>): Promise<IntegrationEnvelope<object>> {
     switch (envelope.eventType) {
       case STOCK_INBOUND_EVENTS.TEAM_PLANNING_MATERIAL_AVAILABILITY_REQUESTED:
       case STOCK_INBOUND_EVENTS.CHIFFRAGE_AVAILABILITY_REQUESTED:
-        return this.availability(envelope as IntegrationEnvelope<AvailabilityRequestPayload>);
+        return this.availability(envelope as unknown as IntegrationEnvelope<AvailabilityRequestPayload>);
 
       case STOCK_INBOUND_EVENTS.TEAM_PLANNING_STOCK_EXIT_DRAFT_REQUESTED:
-        return this.exitDraft(envelope as IntegrationEnvelope<StockExitDraftPayload>);
+        return this.exitDraft(envelope as unknown as IntegrationEnvelope<StockExitDraftPayload>);
 
       case STOCK_INBOUND_EVENTS.CHIFFRAGE_RESERVATION_REQUESTED:
-        return this.reservationDraft(envelope as IntegrationEnvelope<ReservationRequestPayload>);
+        return this.reservationDraft(envelope as unknown as IntegrationEnvelope<ReservationRequestPayload>);
 
       case STOCK_INBOUND_EVENTS.CHIFFRAGE_RESERVATION_RELEASE_REQUESTED:
         return this.reservationReleaseDraft(
-          envelope as IntegrationEnvelope<ReservationReleaseRequestPayload>,
+          envelope as unknown as IntegrationEnvelope<ReservationReleaseRequestPayload>,
         );
 
       default:
