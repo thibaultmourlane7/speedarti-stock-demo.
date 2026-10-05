@@ -603,14 +603,14 @@ export class StockApplicationService {
       });
 
     const itemMap = new Map(views.map(view => [view.item.id, view.item]));
-    const inventory: StockAlertView[] = movements
+    const inventory = movements
       .filter(movement => movement.movementType === "ADJUSTMENT" && movement.sourceModule === "stock_inventory")
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, 10)
-      .map(movement => {
+      .reduce<StockAlertView[]>((alerts, movement) => {
         const item = itemMap.get(movement.productId);
-        if (!item) return null;
-        return {
+        if (!item) return alerts;
+        alerts.push({
           id: `INVENTORY_DIFFERENCE:${movement.id}`,
           type: "INVENTORY_DIFFERENCE",
           item,
@@ -619,9 +619,9 @@ export class StockApplicationService {
           movementId: movement.id,
           createdAt: movement.createdAt,
           message: `Écart d'inventaire corrigé de ${movement.quantity > 0 ? "+" : ""}${movement.quantity} ${item.unit}.`,
-        } satisfies StockAlertView;
-      })
-      .filter((value): value is StockAlertView => value !== null);
+        });
+        return alerts;
+      }, []);
 
     const order: Record<StockAlertView["type"], number> = {
       OUT_OF_STOCK: 0,
