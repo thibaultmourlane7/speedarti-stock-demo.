@@ -124,3 +124,71 @@ test("une rupture fournisseur bloque la préparation d'une action", async () => 
     (error: unknown) => error instanceof StockDomainError && error.code === "VALIDATION_REQUIRED",
   );
 });
+
+
+test("plusieurs fournisseurs peuvent référencer le même produit SpeedArti", async () => {
+  const availability = (supplierId: string, supplierName: string, supplierReference: string): SupplierAvailability => ({
+    supplierId,
+    supplierName,
+    supplierProductId: supplierReference,
+    supplierReference,
+    productId: "speedarti-product-1",
+    designation: "Même produit mappé",
+    availableQuantity: 10,
+    unit: "piece",
+    priceHt: null,
+    stockStatus: "AVAILABLE",
+    lastSyncAt: NOW,
+    depotId: null,
+    depotName: null,
+    source: "demo",
+    isDemo: true,
+  });
+  const adapter = (supplierId: string, supplierName: string, ref: string): SupplierStockAdapter => ({
+    supplierId,
+    supplierName,
+    getStatus: () => ({ ready: true, mode: "demo", label: "test" }),
+    search: async () => [availability(supplierId, supplierName, ref)],
+  });
+
+  const service = new SupplierStockService(() => NOW);
+  service.register(adapter("s1", "Fournisseur 1", "REF-A"));
+  service.register(adapter("s2", "Fournisseur 2", "REF-B"));
+
+  const rows = await service.search("Même produit");
+  assert.equal(rows.length, 2);
+  assert.deepEqual(new Set(rows.map(row => row.productId)), new Set(["speedarti-product-1"]));
+  assert.deepEqual(new Set(rows.map(row => row.supplierReference)), new Set(["REF-A", "REF-B"]));
+});
+
+test("un fournisseur indisponible n'empêche pas les autres fournisseurs de répondre", async () => {
+  const unavailable: SupplierStockAdapter = {
+    supplierId: "offline",
+    supplierName: "ERP indisponible",
+    getStatus: () => ({ ready: false, mode: "contracts_only", label: "hors ligne", reason: "test" }),
+    search: async () => {
+      throw new Error("Ce connecteur ne doit pas être appelé.");
+    },
+  };
+
+  const service = new SupplierStockService(() => NOW);
+  service.register(unavailable);
+  service.register(new IdeaBoisDemoAdapter(() => NOW));
+
+  const rows = await service.search("lame");
+  assert.ok(rows.length >= 1);
+  assert.ok(rows.every(row => row.supplierId !== "offline"));
+});
+
+test("les cinq statuts fournisseur sont représentables", async () => {
+  const service = new SupplierStockService(() => NOW);
+  service.register(new IdeaBoisDemoAdapter(() => NOW));
+  service.register(new GenericSupplierDemoAdapter(() => NOW));
+
+  const statuses = new Set((await service.search()).map(row => row.stockStatus));
+  assert.ok(statuses.has("AVAILABLE"));
+  assert.ok(statuses.has("LOW_STOCK"));
+  assert.ok(statuses.has("OUT_OF_STOCK"));
+  assert.ok(statuses.has("ON_ORDER"));
+  assert.ok(statuses.has("UNKNOWN"));
+});
