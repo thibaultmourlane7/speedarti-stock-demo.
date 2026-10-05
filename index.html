@@ -73,6 +73,44 @@
   <div class="two-cols"><label>Famille<select name="family"><option value="materiaux">Matériaux</option><option value="fournitures">Fournitures</option><option value="consommables">Consommables</option><option value="outillage">Outillage</option></select></label><label>Unité<select name="unit"><option value="piece">Pièce</option><option value="ml">ml</option><option value="m2">m²</option><option value="m3">m³</option><option value="kg">kg</option><option value="litre">Litre</option><option value="sac">Sac</option><option value="boite">Boîte</option><option value="rouleau">Rouleau</option><option value="palette">Palette</option></select></label></div>
   <div class="two-cols"><label>Quantité initiale<input name="initialQuantity" type="number" min="0" step="any" value="0"></label><label>Emplacement<select name="locationId" id="item-location-select"></select></label></div>
   <label>Seuil minimum <span class="optional">(facultatif)</span><input name="minimumQuantity" type="number" min="0" step="any"></label>
+  <details class="condition-details">
+    <summary>Conditionnement / dimensions</summary>
+    <div class="details-body">
+      <div class="info-banner compact">Ajoutez une unité secondaire calculée sans créer un deuxième stock. Ex. 30 chevrons de 4 m = 120 ml ; 4 boîtes de 200 vis = 800 vis.</div>
+      <label>Calcul secondaire
+        <select name="secondaryMode" id="secondary-mode">
+          <option value="none">Aucun</option>
+          <option value="length">Longueur par unité</option>
+          <option value="area">Surface par unité</option>
+          <option value="volume">Volume par unité</option>
+          <option value="manual">Contenu par unité / emballage</option>
+        </select>
+      </label>
+      <div data-secondary-group="length" hidden>
+        <label>Longueur d'une unité (m)<input name="lengthM" type="number" min="0.000001" step="any" placeholder="Ex. 4"></label>
+        <p class="field-help">Ex. 30 chevrons × 4 m = 120 ml.</p>
+      </div>
+      <div data-secondary-group="area" hidden>
+        <div class="two-cols"><label>Longueur (m)<input name="lengthM" type="number" min="0.000001" step="any" placeholder="Ex. 2.5"></label><label>Largeur (m)<input name="widthM" type="number" min="0.000001" step="any" placeholder="Ex. 1.25"></label></div>
+        <p class="field-help">Ex. 20 plaques 2,50 × 1,25 m = 62,5 m².</p>
+      </div>
+      <div data-secondary-group="volume" hidden>
+        <div class="two-cols"><label>Longueur (m)<input name="lengthM" type="number" min="0.000001" step="any"></label><label>Largeur (m)<input name="widthM" type="number" min="0.000001" step="any"></label></div>
+        <label>Épaisseur (mm)<input name="thicknessMm" type="number" min="0.000001" step="any"></label>
+      </div>
+      <div data-secondary-group="manual" hidden>
+        <div class="two-cols">
+          <label>Contenu par unité principale<input name="secondaryPerPrimary" type="number" min="0.000001" step="any" placeholder="Ex. 200"></label>
+          <label>Unité secondaire
+            <select name="secondaryUnit">
+              <option value="piece">Pièce</option><option value="ml">ml</option><option value="m2">m²</option><option value="m3">m³</option><option value="kg">kg</option><option value="litre">Litre</option>
+            </select>
+          </label>
+        </div>
+        <p class="field-help">Ex. 1 boîte = 200 vis ; 1 sac = 25 kg ; 1 rouleau = 25 ml.</p>
+      </div>
+    </div>
+  </details>
   <details><summary>Plus d'options</summary><div class="details-body"><label>Référence interne<input name="internalReference"></label><label>Référence fournisseur<input name="supplierReference"></label><label>Code-barres<input name="barcode"></label><label>Notes<textarea name="notes" rows="3"></textarea></label></div></details>
   <div class="dialog-actions"><button type="button" class="button ghost" data-close="item-dialog">Annuler</button><button class="button primary">Ajouter</button></div>
 </form></dialog>
@@ -80,14 +118,14 @@
 <dialog id="movement-dialog"><form id="movement-form" method="dialog" class="dialog-form">
   <div class="dialog-head"><div><span class="eyebrow" id="movement-eyebrow">Mouvement</span><h2 id="movement-title">Entrée</h2></div><button type="button" class="icon-button" data-close="movement-dialog">×</button></div>
   <input type="hidden" name="productId"><input type="hidden" name="mode"><div class="movement-product" id="movement-product"></div>
-  <label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required></label><label>Emplacement<select name="locationId" id="movement-location-select"></select></label>
+  <div class="two-cols"><label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required></label><label>Saisir en<select name="unit" id="movement-unit-select"></select></label></div><label>Emplacement<select name="locationId" id="movement-location-select"></select></label>
   <label>Chantier <span class="optional">(facultatif)</span><input name="chantierId"></label><label>Motif <span class="optional">(facultatif)</span><input name="reason"></label>
   <div class="dialog-actions"><button type="button" class="button ghost" data-close="movement-dialog">Annuler</button><button class="button primary">Valider</button></div>
 </form></dialog>
 
 <dialog id="transfer-dialog"><form id="transfer-form" method="dialog" class="dialog-form">
   <div class="dialog-head"><div><span class="eyebrow">Transfert</span><h2>Déplacer du stock</h2></div><button type="button" class="icon-button" data-close="transfer-dialog">×</button></div>
-  <input type="hidden" name="productId"><div class="movement-product" id="transfer-product"></div><label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required></label>
+  <input type="hidden" name="productId"><div class="movement-product" id="transfer-product"></div><div class="two-cols"><label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required></label><label>Saisir en<select name="unit" id="transfer-unit-select"></select></label></div>
   <div class="two-cols"><label>Depuis<select name="fromLocationId" id="transfer-from-select"></select></label><label>Vers<select name="toLocationId" id="transfer-to-select"></select></label></div>
   <label>Chantier <span class="optional">(facultatif)</span><input name="chantierId"></label><label>Motif <span class="optional">(facultatif)</span><input name="reason" placeholder="Ex. Chargement camion"></label>
   <div class="dialog-actions"><button type="button" class="button ghost" data-close="transfer-dialog">Annuler</button><button class="button primary">Transférer</button></div>
@@ -97,7 +135,7 @@
   <div class="dialog-head"><div><span class="eyebrow">Autre mouvement</span><h2>Perte, casse ou retour</h2></div><button type="button" class="icon-button" data-close="incident-dialog">×</button></div>
   <input type="hidden" name="productId"><div class="movement-product" id="incident-product"></div>
   <label>Type<select name="kind"><option value="LOSS">Perte</option><option value="BREAKAGE">Casse</option><option value="SITE_RETURN">Retour chantier</option></select></label>
-  <label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required></label><label>Emplacement<select name="locationId" id="incident-location-select"></select></label>
+  <div class="two-cols"><label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required></label><label>Saisir en<select name="unit" id="incident-unit-select"></select></label></div><label>Emplacement<select name="locationId" id="incident-location-select"></select></label>
   <label>Chantier <span class="optional">(facultatif)</span><input name="chantierId"></label><label>Motif <span class="optional">(facultatif)</span><input name="reason"></label>
   <div class="dialog-actions"><button type="button" class="button ghost" data-close="incident-dialog">Annuler</button><button class="button primary">Valider</button></div>
 </form></dialog>
@@ -105,7 +143,7 @@
 <dialog id="reservation-dialog"><form id="reservation-form" method="dialog" class="dialog-form">
   <div class="dialog-head"><div><span class="eyebrow">Réservation chantier</span><h2>Réserver du stock</h2></div><button type="button" class="icon-button" data-close="reservation-dialog">×</button></div>
   <input type="hidden" name="productId"><div class="movement-product" id="reservation-product"></div>
-  <label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required></label>
+  <div class="two-cols"><label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required></label><label>Saisir en<select name="unit" id="reservation-unit-select"></select></label></div>
   <label>Emplacement<select name="locationId" id="reservation-location-select" required></select></label>
   <label>Chantier<input name="chantierId" required placeholder="Ex. Dupont / CH-2026-014"></label>
   <label>Motif <span class="optional">(facultatif)</span><input name="reason" placeholder="Ex. Matériel prévu pour lundi"></label>
@@ -116,7 +154,7 @@
   <div class="dialog-head"><div><span class="eyebrow">Réapprovisionnement</span><h2>Préparer un besoin d'achat</h2></div><button type="button" class="icon-button" data-close="replenish-dialog">×</button></div>
   <input type="hidden" name="productId"><div class="movement-product" id="replenish-product"></div>
   <div class="info-banner compact">Aucune commande n'est créée ici. Ce brouillon est destiné au futur module Commandes / Achats.</div>
-  <label>Quantité à acheter<input name="quantity" type="number" min="0.000001" step="any" required placeholder="Saisir la quantité"></label>
+  <div class="two-cols"><label>Quantité à acheter<input name="quantity" type="number" min="0.000001" step="any" required placeholder="Saisir la quantité"></label><label>Saisir en<select name="unit" id="replenish-unit-select"></select></label></div>
   <label>Emplacement prévu<select name="locationId" id="replenish-location-select"></select></label>
   <label>Chantier <span class="optional">(facultatif)</span><input name="chantierId"></label>
   <label>Motif <span class="optional">(facultatif)</span><input name="reason" placeholder="Ex. Rupture prochaine"></label>
