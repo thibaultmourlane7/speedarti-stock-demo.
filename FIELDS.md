@@ -85,3 +85,75 @@ Une réservation ne diminue pas le stock physique.
 | `status` | — | available/used/lost |
 
 Pour une chute complexe, la compatibilité de réemploi doit utiliser la géométrie exacte et non seulement `lengthMm × widthMm`.
+
+
+## Unité secondaire / conditionnement
+
+Le Stock garde **une seule quantité source de vérité** dans l'unité principale de l'article.
+
+La quantité secondaire est calculée à partir de `StockItem.secondary`.
+
+### Modes
+
+#### `length`
+
+Exemple : chevron de 4 m.
+
+```text
+unité principale : piece
+secondary.mode : length
+secondary.secondaryUnit : ml
+secondary.lengthMm : 4000
+30 pièces = 120 ml
+```
+
+#### `area`
+
+Exemple : plaque 2,50 × 1,25 m.
+
+```text
+unité principale : piece
+lengthMm : 2500
+widthMm : 1250
+20 pièces = 62,5 m²
+```
+
+#### `volume`
+
+Utilise longueur, largeur et épaisseur explicites en millimètres pour produire des m³.
+
+#### `manual`
+
+Pour un conditionnement fabricant ou fournisseur :
+
+```text
+1 boîte = 200 pièces
+1 sac = 25 kg
+1 rouleau = 25 ml
+```
+
+Champs :
+
+- `secondaryUnit`
+- `quantityPerPrimaryUnit`
+
+### Mouvements saisis dans l'unité secondaire
+
+L'utilisateur peut saisir une entrée, sortie, perte, casse, retour, transfert ou réservation dans l'unité secondaire.
+
+Le service convertit cette quantité dans l'unité principale **avant** d'appeler le moteur.
+
+Exemple :
+
+```text
+stock = 4 boîtes
+1 boîte = 200 vis
+sortie = 30 vis
+
+mouvement enregistré = 0,15 boîte
+stock restant = 3,85 boîtes
+affichage = 3 boîtes complètes + 170 vis
+total secondaire = 770 vis
+```
+
+Il n'existe donc jamais deux quantités indépendantes susceptibles de se désynchroniser.
