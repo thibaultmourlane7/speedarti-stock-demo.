@@ -2,6 +2,7 @@ import { StockApplicationService } from "../application/stock-application-servic
 import { StockDomainError } from "../core/errors";
 import { secondaryQuantityView } from "../core/stock-conversion";
 import { StockItem, StockLocation, StockMovementType, StockSecondaryDefinition, StockUnit } from "../domain/types";
+import { loadBtpDemoData } from "../demo/demo-data";
 import { LocalStorageStockRepository } from "../repositories/local-storage-stock-repository";
 
 const COMPANY_ID = "demo-company";
@@ -144,6 +145,8 @@ async function renderDashboard(): Promise<void> {
   $("#stat-movements").textContent = String(summary.movementCount);
   $("#stat-reservations").textContent = String(summary.activeReservationCount);
   $("#stat-replenish").textContent = String(summary.purchaseRequirementCount);
+  const demoButton = document.getElementById("load-demo-button") as HTMLButtonElement | null;
+  if (demoButton) demoButton.hidden = summary.articleCount > 0;
 }
 
 async function renderStock(): Promise<void> {
@@ -206,6 +209,34 @@ async function renderStock(): Promise<void> {
       else if (action === "incident") await openIncident(productId);
     });
   });
+}
+
+async function renderAlerts(): Promise<void> {
+  const alerts = await service.listAlerts();
+  const list = $("#alert-list") as HTMLDivElement;
+  if (!alerts.length) {
+    list.innerHTML = `<div class="empty"><strong>Aucune alerte</strong><span>Les ruptures, stocks faibles et écarts d'inventaire apparaîtront ici.</span></div>`;
+    return;
+  }
+
+  list.innerHTML = alerts.map(alert => {
+    const kind = alert.type === "OUT_OF_STOCK"
+      ? { label: "Rupture", css: "out" }
+      : alert.type === "LOW_STOCK"
+        ? { label: "Stock faible", css: "low" }
+        : { label: "Écart inventaire", css: "info" };
+    const display = stockQuantityLines(alert.item, alert.quantity);
+    const threshold = alert.threshold === null
+      ? ""
+      : ` · Seuil ${quantity(alert.threshold)} ${unitLabel(alert.item.unit, alert.threshold)}`;
+    return `<article class="alert-row">
+      <div>
+        <div class="alert-title"><strong>${escapeHtml(alert.item.name)}</strong><span class="badge ${kind.css}">${kind.label}</span></div>
+        <span>${escapeHtml(alert.message)}${threshold}${alert.type === "INVENTORY_DIFFERENCE" ? ` · ${dateLabel(alert.createdAt)}` : ""}</span>
+      </div>
+      <div class="alert-qty">${escapeHtml(display.main)}${display.secondary ? `<small>${escapeHtml(display.secondary)}</small>` : ""}</div>
+    </article>`;
+  }).join("");
 }
 
 async function renderHistory(): Promise<void> {
@@ -337,7 +368,7 @@ async function renderInventory(): Promise<void> {
 
 async function refresh(): Promise<void> {
   await fillLocationSelects();
-  await Promise.all([renderDashboard(), renderStock(), renderHistory(), renderLocations(), renderInventory(), renderReservationsAndNeeds()]);
+  await Promise.all([renderDashboard(), renderStock(), renderAlerts(), renderHistory(), renderLocations(), renderInventory(), renderReservationsAndNeeds()]);
 }
 
 async function openMovement(productId: string, mode: "entry" | "exit"): Promise<void> {
@@ -525,6 +556,23 @@ function wireSecondaryFields(): void {
   refreshFields();
 }
 
+function wireDemoData(): void {
+  const button = document.getElementById("load-demo-button") as HTMLButtonElement | null;
+  if (!button) return;
+  button.addEventListener("click", async () => {
+    try {
+      button.disabled = true;
+      await loadBtpDemoData(service);
+      showToast("Exemples BTP chargés.");
+      await refresh();
+    } catch (error) {
+      showToast(explainError(error), true);
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
 function wireSearch(): void {
   const input=$("#search-input") as HTMLInputElement;
   input.addEventListener("input",async()=>{search=input.value;await renderStock();});
@@ -535,5 +583,5 @@ function wireInventory(): void {
   $("#refresh-inventory-button").addEventListener("click",()=>{void renderInventory();});
 }
 
-async function main():Promise<void>{wireTabs();wireDialogs();wireForms();wireSecondaryFields();wireSearch();wireInventory();await service.initialize();await refresh();}
+async function main():Promise<void>{wireTabs();wireDialogs();wireForms();wireSecondaryFields();wireDemoData();wireSearch();wireInventory();await service.initialize();await refresh();}
 main().catch(error=>{showToast(explainError(error),true);console.error(error);});
