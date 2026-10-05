@@ -31,6 +31,7 @@
       <button class="tab" data-tab="needs">Réservations & achats</button>
       <button class="tab" data-tab="inventory">Inventaire</button>
       <button class="tab" data-tab="history">Mouvements</button>
+      <button class="tab" data-tab="expert">Stock Expert</button>
       <button class="tab" data-tab="locations">Emplacements</button>
     </nav>
 
@@ -103,6 +104,87 @@
     <section id="history-panel" class="panel">
       <div class="section-heading"><div><h2>Mouvements</h2><p>Entrées, sorties, transferts, pertes, casse, retours et ajustements restent tracés.</p></div></div>
       <div id="history-list" class="history-list"></div>
+    </section>
+
+    <section id="expert-panel" class="panel">
+      <div class="section-heading">
+        <div><h2>Stock Expert</h2><p>QR, codes-barres et stock avancé par véhicule.</p></div>
+      </div>
+
+      <div class="expert-grid">
+        <section class="expert-card">
+          <div>
+            <span class="eyebrow">Scan</span>
+            <h3>QR & codes-barres</h3>
+            <p>Un scan identifie ou prépare une action. <strong>Aucun mouvement n'est créé sans confirmation humaine.</strong></p>
+          </div>
+          <form id="expert-scan-form" class="expert-inline-form">
+            <input id="expert-scan-input" name="code" placeholder="Scannez ou collez un code-barres / QR SpeedArti" required>
+            <button class="button primary">Analyser</button>
+          </form>
+          <div class="expert-scan-actions">
+            <button id="expert-camera-button" type="button" class="button secondary">Ouvrir la caméra</button>
+            <button id="expert-camera-stop" type="button" class="button ghost" hidden>Fermer la caméra</button>
+          </div>
+          <div id="expert-camera-wrap" class="expert-camera-wrap" hidden>
+            <video id="expert-camera-video" playsinline muted></video>
+            <small>Formats visés : QR Code, EAN-13, EAN-8 et Code 128 selon le navigateur.</small>
+          </div>
+          <div id="expert-scan-result" class="expert-scan-result" hidden></div>
+        </section>
+
+        <section class="expert-card">
+          <div>
+            <span class="eyebrow">Véhicules</span>
+            <h3>Créer un véhicule</h3>
+            <p>Chaque véhicule est un emplacement Stock distinct, avec ses quantités réellement chargées.</p>
+          </div>
+          <form id="vehicle-create-form" class="expert-inline-form three">
+            <input name="name" placeholder="Ex. Camion couvreur" required>
+            <input name="registration" placeholder="Immatriculation (facultatif)">
+            <button class="button secondary">Ajouter</button>
+          </form>
+        </section>
+      </div>
+
+      <section class="expert-card expert-wide">
+        <div class="section-heading compact-heading">
+          <div><h3>Chargement véhicule</h3><p>Transfert réel depuis le dépôt principal vers un véhicule.</p></div>
+        </div>
+        <form id="vehicle-load-form" class="vehicle-load-form">
+          <label>Article<select name="productId" id="vehicle-load-product"></select></label>
+          <label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required value="1"></label>
+          <label>Unité<select name="unit" id="vehicle-load-unit"></select></label>
+          <label>Véhicule<select name="vehicleId" id="vehicle-load-vehicle"></select></label>
+          <button class="button primary">Charger</button>
+        </form>
+      </section>
+
+      <section class="expert-card expert-wide">
+        <div class="section-heading compact-heading">
+          <div><h3>Stocks dans les véhicules</h3><p>Contenu par véhicule, réservations et actions rapides.</p></div>
+        </div>
+        <div id="vehicle-stock-list" class="vehicle-stock-list"></div>
+      </section>
+
+      <section class="expert-card expert-wide">
+        <div>
+          <span class="eyebrow">QR SpeedArti</span>
+          <h3>Préparer un code d'action</h3>
+          <p>Le contenu ci-dessous est le payload métier à encoder dans un QR. Il reste inutilisable tant qu'un humain ne confirme pas l'action après scan.</p>
+        </div>
+        <form id="expert-qr-form" class="expert-qr-form">
+          <label>Article<select name="productId" id="expert-qr-product"></select></label>
+          <label>Action<select name="action"><option value="ENTRY">Entrée</option><option value="EXIT">Sortie</option><option value="TRANSFER">Transfert</option><option value="SITE_RETURN">Retour chantier</option></select></label>
+          <label>Quantité<input name="quantity" type="number" min="0.000001" step="any" value="1" required></label>
+          <label>Unité<select name="unit" id="expert-qr-unit"></select></label>
+          <label>Depuis<select name="fromLocationId" id="expert-qr-from"></select></label>
+          <label>Vers<select name="toLocationId" id="expert-qr-to"></select></label>
+          <label>Chantier <span class="optional">(facultatif)</span><input name="chantierId"></label>
+          <button class="button secondary">Préparer</button>
+        </form>
+        <div id="expert-qr-output" class="expert-qr-output" hidden></div>
+      </section>
     </section>
 
     <section id="locations-panel" class="panel">
