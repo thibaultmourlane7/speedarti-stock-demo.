@@ -1,4 +1,5 @@
 import { StockApplicationService } from "../application/stock-application-service";
+import { AngelSupplierSearchService } from "../angele/supplier-search";
 import { StockDomainError } from "../core/errors";
 import { secondaryQuantityView } from "../core/stock-conversion";
 import { StockItem, StockLocation, StockMovementType, StockSecondaryDefinition, StockUnit } from "../domain/types";
@@ -15,6 +16,7 @@ const service = new StockApplicationService(repository, COMPANY_ID, USER_ID);
 const supplierService = new SupplierStockService();
 supplierService.register(new IdeaBoisDemoAdapter());
 supplierService.register(new GenericSupplierDemoAdapter());
+const angelSupplierService = new AngelSupplierSearchService(supplierService);
 
 const $ = <T extends Element>(selector: string): T => {
   const element = document.querySelector(selector);
@@ -285,6 +287,39 @@ async function renderAlerts(): Promise<void> {
   }).join("");
 }
 
+
+async function renderAngelSupplierAnswer(query: string): Promise<void> {
+  const box = $("#angel-supplier-answer") as HTMLDivElement;
+  const answer = await angelSupplierService.search(query);
+  box.hidden = false;
+
+  if (!answer.results.length) {
+    box.innerHTML = `
+      <div class="angel-answer-head"><strong>Ángel — réponse fournisseur</strong><span class="badge neutral">Aucune correspondance</span></div>
+      <p>${escapeHtml(answer.message)}</p>
+      <small>Source : SupplierStockService · aucune lecture directe de table fournisseur.</small>
+    `;
+    return;
+  }
+
+  box.innerHTML = `
+    <div class="angel-answer-head"><strong>Ángel — réponse fournisseur</strong><span class="badge info">${answer.results.length} résultat${answer.results.length > 1 ? "s" : ""}</span></div>
+    <p>${escapeHtml(answer.message)}</p>
+    <div class="angel-answer-results">
+      ${answer.results.map(row => {
+        const status = supplierStatus(row.stockStatus as SupplierStockStatus);
+        const available = row.availableQuantity === null
+          ? "Quantité non communiquée"
+          : `${quantity(row.availableQuantity)} ${unitLabel(row.unit as StockUnit, row.availableQuantity)}`;
+        return `<div>
+          <strong>${escapeHtml(row.supplierName)} · réf. ${escapeHtml(row.supplierReference)}</strong>
+          <span>${escapeHtml(available)} · ${status.label} · ${escapeHtml(row.freshness)}</span>
+        </div>`;
+      }).join("")}
+    </div>
+    <small>Source : SupplierStockService · stock artisan non fusionné · aucune table fournisseur lue directement.</small>
+  `;
+}
 
 async function renderSuppliers(): Promise<void> {
   const rows = await supplierService.search(supplierSearch);
@@ -689,6 +724,24 @@ function wireDemoData(): void {
   });
 }
 
+function wireAngelSupplier(): void {
+  const form = $("#angel-supplier-form") as HTMLFormElement;
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const query = String(data.get("query") ?? "").trim();
+    if (!query) {
+      showToast("Saisissez une question ou un produit à rechercher.", true);
+      return;
+    }
+    try {
+      await renderAngelSupplierAnswer(query);
+    } catch (error) {
+      showToast(explainError(error), true);
+    }
+  });
+}
+
 function wireSupplierSearch(): void {
   const input = $("#supplier-search-input") as HTMLInputElement;
   input.addEventListener("input", async () => {
@@ -707,5 +760,5 @@ function wireInventory(): void {
   $("#refresh-inventory-button").addEventListener("click",()=>{void renderInventory();});
 }
 
-async function main():Promise<void>{wireTabs();wireDialogs();wireForms();wireSecondaryFields();wireDemoData();wireSupplierSearch();wireSearch();wireInventory();await service.initialize();await refresh();}
+async function main():Promise<void>{wireTabs();wireDialogs();wireForms();wireSecondaryFields();wireDemoData();wireAngelSupplier();wireSupplierSearch();wireSearch();wireInventory();await service.initialize();await refresh();}
 main().catch(error=>{showToast(explainError(error),true);console.error(error);});
