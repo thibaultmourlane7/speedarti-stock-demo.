@@ -150,6 +150,17 @@ export interface DashboardSummary {
   purchaseRequirementCount: number;
 }
 
+export interface StockAlertView {
+  id: string;
+  type: "LOW_STOCK" | "OUT_OF_STOCK" | "INVENTORY_DIFFERENCE";
+  item: StockItem;
+  quantity: number;
+  threshold: number | null;
+  movementId: string | null;
+  createdAt: string;
+  message: string;
+}
+
 function text(value: unknown): string {
   return String(value ?? "").trim();
 }
@@ -565,6 +576,63 @@ export class StockApplicationService {
         locationFromName: movement.locationFromId ? locationNames.get(movement.locationFromId) ?? "Emplacement inconnu" : null,
         locationToName: movement.locationToId ? locationNames.get(movement.locationToId) ?? "Emplacement inconnu" : null,
       }));
+  }
+
+  async listAlerts(): Promise<StockAlertView[]> {
+    const [views, movements] = await Promise.all([
+      this.listItemViews(),
+      this.repository.listAllMovements(this.companyId),
+    ]);
+
+    const current: StockAlertView[] = views
+      .filter(view => view.snapshot.status === "LOW_STOCK" || view.snapshot.status === "OUT_OF_STOCK")
+      .map(view => {
+        const type = view.snapshot.status === "OUT_OF_STOCK" ? "OUT_OF_STOCK" : "LOW_STOCK";
+        return {
+          id: `${type}:${view.item.id}`,
+          type,
+          item: view.item,
+          quantity: view.snapshot.availableQuantity,
+          threshold: view.item.minimumQuantity,
+          movementId: null,
+          createdAt: this.now(),
+          message: type === "OUT_OF_STOCK"
+            ? "Article en rupture."
+            : `Stock disponible sous le seuil minimum${view.item.minimumQuantity === null ? "" : ` de ${view.item.minimumQuantity}`}.`,
+        } satisfies StockAlertView;
+      });
+
+    const itemMap = new Map(views.map(view => [view.item.id, view.item]));
+    const inventory: StockAlertView[] = movements
+      .filter(movement => movement.movementType === "ADJUSTMENT" && movement.sourceModule === "stock_inventory")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 10)
+      .map(movement => {
+        const item = itemMap.get(movement.productId);
+        if (!item) return null;
+        return {
+          id: `INVENTORY_DIFFERENCE:${movement.id}`,
+          type: "INVENTORY_DIFFERENCE",
+          item,
+          quantity: movement.quantity,
+          threshold: item.minimumQuantity,
+          movementId: movement.id,
+          createdAt: movement.createdAt,
+          message: `Écart d'inventaire corrigé de ${movement.quantity > 0 ? "+" : ""}${movement.quantity} ${item.unit}.`,
+        } satisfies StockAlertView;
+      })
+      .filter((value): value is StockAlertView => value !== null);
+
+    const order: Record<StockAlertView["type"], number> = {
+      OUT_OF_STOCK: 0,
+      LOW_STOCK: 1,
+      INVENTORY_DIFFERENCE: 2,
+    };
+
+    return [...current, ...inventory].sort((a, b) => {
+      const typeOrder = order[a.type] - order[b.type];
+      return typeOrder !== 0 ? typeOrder : b.createdAt.localeCompare(a.createdAt);
+    });
   }
 
   async dashboard(): Promise<DashboardSummary> {
