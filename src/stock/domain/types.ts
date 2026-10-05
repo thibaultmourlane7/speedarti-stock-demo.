@@ -1,5 +1,5 @@
 /**
- * SpeedArti Stock — contrat métier Sprint A.
+ * SpeedArti Stock — contrats métier.
  *
  * Règle : la quantité physique n'est pas stockée dans StockItem.
  * Elle est dérivée des mouvements. Les réservations sont séparées.
@@ -152,6 +152,25 @@ export interface InventorySession {
   createdBy: Id | null;
   createdAt: ISODateTime;
   completedAt: ISODateTime | null;
+}
+
+export type PurchaseRequirementStatus = "DRAFT" | "HANDED_TO_ORDERS";
+
+export interface StockPurchaseRequirement {
+  id: Id;
+  companyId: Id;
+  productId: Id;
+  locationId: Id | null;
+  chantierId: Id | null;
+  quantity: number;
+  unit: StockUnit;
+  status: PurchaseRequirementStatus;
+  reason: string | null;
+  sourceModule: string;
+  sourceId: string | null;
+  createdBy: Id | null;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
 }
 
 export interface OrthogonalCell {
