@@ -346,6 +346,7 @@ export class StockApplicationService {
       userId: this.userId,
       sourceModule: "stock_ui",
       sourceId: chantierId,
+      reason: text(input.reason) || null,
     });
   }
 
