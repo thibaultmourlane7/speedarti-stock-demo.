@@ -68,3 +68,7 @@ Les mouvements `LOSS` et `BREAKAGE` diminuent le stock à l'emplacement choisi e
 - intégration production SpeedArti.
 
 Ces éléments sont réservés aux lots suivants.
+
+## Déploiement
+
+GitHub Pages utilise désormais **GitHub Actions** comme source. Le workflow du dépôt compile la démo, exécute les tests et publie explicitement `browser-dist` avec le site.
