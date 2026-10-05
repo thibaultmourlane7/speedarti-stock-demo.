@@ -40,7 +40,7 @@ test("Angèle n'invente rien si aucune référence fournisseur ne correspond", a
   const { angel } = setup();
   const answer = await angel.search("REF-INCONNUE-XYZ");
   assert.equal(answer.results.length, 0);
-  assert.match(answer.message, /n'invente aucune référence ni quantité/i);
+  assert.ok(/n'invente aucune référence ni quantité/i.test(answer.message));
 });
 
 test("Angèle conserve une fraîcheur inconnue quand le fournisseur ne donne pas de date", async () => {
@@ -55,6 +55,6 @@ test("Angèle peut retourner plusieurs fournisseurs sans en recommander un autom
   const { angel } = setup();
   const answer = await angel.search("");
   assert.ok(answer.results.length > 1);
-  assert.match(answer.message, /disponibilités fournisseur trouvées/i);
-  assert.doesNotMatch(answer.message, /meilleur|recommand/i);
+  assert.ok(/disponibilités fournisseur trouvées/i.test(answer.message));
+  assert.ok(!/meilleur|recommand/i.test(answer.message));
 });
