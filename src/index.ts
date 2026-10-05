@@ -13,3 +13,5 @@ export * from "./stock/integrations/stock-integration-service";
 export * from "./stock/suppliers/types";
 export * from "./stock/suppliers/supplier-service";
 export * from "./stock/suppliers/demo-adapters";
+
+export * from "./stock/angele/supplier-search";
