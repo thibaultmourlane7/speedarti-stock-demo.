@@ -267,7 +267,7 @@ export class StockEngine {
     await this.assertSourceEventAvailable(companyId, sourceEventId ?? null);
     const reservation = await this.repository.getReservation(companyId, reservationId);
     if (!reservation) {
-      throw new StockDomainError("PRODUCT_NOT_FOUND", "Réservation Stock introuvable.", { companyId, reservationId });
+      throw new StockDomainError("RESERVATION_NOT_FOUND", "Réservation Stock introuvable.", { companyId, reservationId });
     }
     if (reservation.status !== "ACTIVE") return reservation;
     const updated: StockReservation = {
