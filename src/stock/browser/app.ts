@@ -64,7 +64,7 @@ function statusBadge(status: string): string {
 async function fillLocationSelects(): Promise<void> {
   const locations = await service.listLocations();
   const options = locations.map(l => `<option value="${escapeHtml(l.id)}">${escapeHtml(l.name)}</option>`).join("");
-  for (const id of ["item-location-select", "movement-location-select", "transfer-from-select", "transfer-to-select", "incident-location-select", "inventory-location-select"]) {
+  for (const id of ["item-location-select", "movement-location-select", "transfer-from-select", "transfer-to-select", "incident-location-select", "inventory-location-select", "reservation-location-select", "replenish-location-select"]) {
     const el = document.getElementById(id) as HTMLSelectElement | null;
     if (el) el.innerHTML = options;
   }
@@ -76,6 +76,8 @@ async function renderDashboard(): Promise<void> {
   $("#stat-low").textContent = String(summary.lowStockCount);
   $("#stat-out").textContent = String(summary.outOfStockCount);
   $("#stat-movements").textContent = String(summary.movementCount);
+  $("#stat-reservations").textContent = String(summary.activeReservationCount);
+  $("#stat-replenish").textContent = String(summary.purchaseRequirementCount);
 }
 
 async function renderStock(): Promise<void> {
@@ -111,6 +113,8 @@ async function renderStock(): Promise<void> {
           <button class="button secondary small" data-action="entry">+ Entrée</button>
           <button class="button danger-soft small" data-action="exit">− Sortie</button>
           <button class="button ghost small" data-action="transfer">⇄ Transférer</button>
+          <button class="button ghost small" data-action="reserve">Réserver</button>
+          <button class="button secondary small" data-action="replenish">Réapprovisionner</button>
           <button class="button ghost small" data-action="incident">Autre mouvement</button>
         </div>
       </article>`;
@@ -125,6 +129,8 @@ async function renderStock(): Promise<void> {
       if (!productId) return;
       if (action === "entry" || action === "exit") await openMovement(productId, action);
       else if (action === "transfer") await openTransfer(productId);
+      else if (action === "reserve") await openReservation(productId);
+      else if (action === "replenish") await openReplenish(productId);
       else if (action === "incident") await openIncident(productId);
     });
   });
@@ -159,6 +165,60 @@ async function renderLocations(): Promise<void> {
   list.innerHTML = locations.map(location => `
     <article class="location-row"><div><strong>${escapeHtml(location.name)}</strong><span>${escapeHtml(locationTypeLabel(location.type))}</span></div>
     ${location.name === "Dépôt principal" ? `<span class="badge good">Par défaut</span>` : ""}</article>`).join("");
+}
+
+async function renderReservationsAndNeeds(): Promise<void> {
+  const [reservations, requirements] = await Promise.all([
+    service.listActiveReservations(),
+    service.listPurchaseRequirements(),
+  ]);
+
+  const reservationList = $("#reservation-list") as HTMLDivElement;
+  if (!reservations.length) {
+    reservationList.innerHTML = `<div class="empty"><strong>Aucune réservation active</strong><span>Réservez du matériel pour un chantier depuis Mon stock.</span></div>`;
+  } else {
+    reservationList.innerHTML = reservations.map(({ reservation, item, location }) => `
+      <article class="reservation-row" data-reservation-id="${escapeHtml(reservation.id)}">
+        <div>
+          <strong>${escapeHtml(item.name)}</strong>
+          <span>Chantier ${escapeHtml(reservation.chantierId ?? "non renseigné")} · ${escapeHtml(location?.name ?? "Tous emplacements")} · ${dateLabel(reservation.createdAt)}</span>
+        </div>
+        <div class="reservation-qty">${quantity(reservation.quantity)} ${UNIT_LABELS[item.unit]}</div>
+        <button class="button ghost small" data-release>Libérer</button>
+      </article>
+    `).join("");
+
+    reservationList.querySelectorAll<HTMLButtonElement>("[data-release]").forEach(button => {
+      button.addEventListener("click", async () => {
+        const row = button.closest<HTMLElement>("[data-reservation-id]");
+        const reservationId = row?.dataset.reservationId;
+        if (!reservationId) return;
+        try {
+          await service.releaseReservation(reservationId);
+          showToast("Réservation libérée.");
+          await refresh();
+        } catch (error) {
+          showToast(explainError(error), true);
+        }
+      });
+    });
+  }
+
+  const requirementList = $("#requirement-list") as HTMLDivElement;
+  if (!requirements.length) {
+    requirementList.innerHTML = `<div class="empty"><strong>Aucun besoin d'achat préparé</strong><span>Le Stock prépare un besoin, mais ne crée jamais lui-même une commande fournisseur.</span></div>`;
+  } else {
+    requirementList.innerHTML = requirements.map(({ requirement, item, location }) => `
+      <article class="requirement-row">
+        <div>
+          <strong>${escapeHtml(item.name)}</strong>
+          <span>${escapeHtml(location?.name ?? "Emplacement non défini")}${requirement.chantierId ? ` · Chantier ${escapeHtml(requirement.chantierId)}` : ""}${requirement.reason ? ` · ${escapeHtml(requirement.reason)}` : ""}</span>
+        </div>
+        <div class="requirement-qty">${quantity(requirement.quantity)} ${UNIT_LABELS[item.unit]}</div>
+        <span class="badge low">Brouillon Commandes</span>
+      </article>
+    `).join("");
+  }
 }
 
 async function renderInventory(): Promise<void> {
@@ -205,7 +265,7 @@ async function renderInventory(): Promise<void> {
 
 async function refresh(): Promise<void> {
   await fillLocationSelects();
-  await Promise.all([renderDashboard(), renderStock(), renderHistory(), renderLocations(), renderInventory()]);
+  await Promise.all([renderDashboard(), renderStock(), renderHistory(), renderLocations(), renderInventory(), renderReservationsAndNeeds()]);
 }
 
 async function openMovement(productId: string, mode: "entry" | "exit"): Promise<void> {
@@ -245,6 +305,39 @@ async function openIncident(productId: string): Promise<void> {
   if (view.item.mainLocationId) (form.elements.namedItem("locationId") as HTMLSelectElement).value = view.item.mainLocationId;
   $("#incident-product").textContent = view.item.name;
   ($("#incident-dialog") as HTMLDialogElement).showModal();
+}
+
+async function openReservation(productId: string): Promise<void> {
+  const view = (await service.listItemViews()).find(x => x.item.id === productId);
+  if (!view) return;
+  const form = $("#reservation-form") as HTMLFormElement;
+  (form.elements.namedItem("productId") as HTMLInputElement).value = productId;
+  (form.elements.namedItem("quantity") as HTMLInputElement).value = "";
+  (form.elements.namedItem("chantierId") as HTMLInputElement).value = "";
+  (form.elements.namedItem("reason") as HTMLInputElement).value = "";
+  if (view.item.mainLocationId) {
+    (form.elements.namedItem("locationId") as HTMLSelectElement).value = view.item.mainLocationId;
+  }
+  $("#reservation-product").textContent = `${view.item.name} — ${quantity(view.snapshot.availableQuantity)} ${UNIT_LABELS[view.item.unit]} disponibles`;
+  ($("#reservation-dialog") as HTMLDialogElement).showModal();
+}
+
+async function openReplenish(productId: string): Promise<void> {
+  const view = (await service.listItemViews()).find(x => x.item.id === productId);
+  if (!view) return;
+  const form = $("#replenish-form") as HTMLFormElement;
+  (form.elements.namedItem("productId") as HTMLInputElement).value = productId;
+  (form.elements.namedItem("quantity") as HTMLInputElement).value = "";
+  (form.elements.namedItem("chantierId") as HTMLInputElement).value = "";
+  (form.elements.namedItem("reason") as HTMLInputElement).value = "";
+  if (view.item.mainLocationId) {
+    (form.elements.namedItem("locationId") as HTMLSelectElement).value = view.item.mainLocationId;
+  }
+  const threshold = view.item.minimumQuantity === null
+    ? "Aucun seuil minimum défini."
+    : `Seuil minimum : ${quantity(view.item.minimumQuantity)} ${UNIT_LABELS[view.item.unit]}.`;
+  $("#replenish-product").textContent = `${view.item.name} — ${quantity(view.snapshot.availableQuantity)} ${UNIT_LABELS[view.item.unit]} disponibles. ${threshold}`;
+  ($("#replenish-dialog") as HTMLDialogElement).showModal();
 }
 
 function openDialog(id: string): void { (document.getElementById(id) as HTMLDialogElement | null)?.showModal(); }
@@ -292,6 +385,46 @@ function wireForms(): void {
     if(kind==="BREAKAGE") await service.recordBreakage(input); else if(kind==="SITE_RETURN") await service.recordSiteReturn(input); else await service.recordLoss(input);
     closeDialog("incident-dialog"); showToast("Mouvement enregistré."); await refresh();
   }catch(error){showToast(explainError(error),true);} });
+
+  const reservationForm = $("#reservation-form") as HTMLFormElement;
+  reservationForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    const data = new FormData(reservationForm);
+    try {
+      await service.createReservation({
+        productId: String(data.get("productId") ?? ""),
+        quantity: Number(data.get("quantity") ?? 0),
+        locationId: String(data.get("locationId") ?? ""),
+        chantierId: String(data.get("chantierId") ?? "").trim(),
+        reason: String(data.get("reason") ?? "").trim() || null,
+      });
+      closeDialog("reservation-dialog");
+      showToast("Stock réservé pour le chantier.");
+      await refresh();
+    } catch (error) {
+      showToast(explainError(error), true);
+    }
+  });
+
+  const replenishForm = $("#replenish-form") as HTMLFormElement;
+  replenishForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    const data = new FormData(replenishForm);
+    try {
+      await service.createPurchaseRequirement({
+        productId: String(data.get("productId") ?? ""),
+        quantity: Number(data.get("quantity") ?? 0),
+        locationId: String(data.get("locationId") ?? "") || null,
+        chantierId: String(data.get("chantierId") ?? "").trim() || null,
+        reason: String(data.get("reason") ?? "").trim() || null,
+      });
+      closeDialog("replenish-dialog");
+      showToast("Besoin d'achat préparé pour Commandes / Achats.");
+      await refresh();
+    } catch (error) {
+      showToast(explainError(error), true);
+    }
+  });
 
   const locationForm = $("#location-form") as HTMLFormElement;
   locationForm.addEventListener("submit", async event => { event.preventDefault(); const data=new FormData(locationForm); try {
