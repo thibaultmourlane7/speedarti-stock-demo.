@@ -120,3 +120,63 @@ vision/OCR
 → confirmation
 → StockEngine
 ```
+
+
+## Stocks fournisseurs — Sprint F
+
+Le pack Ángel Stock passe à **`stock@1.1.0`**.
+
+Nouvelle intention :
+
+- `rechercher_stock_fournisseur`
+
+### Règle d'accès
+
+Ángel ne lit jamais directement les tables d'un ERP ou d'un fournisseur.
+
+```text
+Question utilisateur
+→ Ángel
+→ AngelSupplierSearchService
+→ SupplierStockService
+→ adaptateurs fournisseur autorisés
+→ réponse structurée
+```
+
+La réponse peut contenir uniquement les données réellement retournées :
+
+- fournisseur ;
+- référence fournisseur ;
+- désignation ;
+- disponibilité ;
+- unité ;
+- statut ;
+- dépôt éventuel ;
+- fraîcheur ;
+- date de dernière synchronisation.
+
+Si une donnée manque, Ángel indique qu'elle est inconnue.
+
+Si aucune référence ne correspond, Ángel répond qu'aucune disponibilité n'a été trouvée. Il n'invente ni référence, ni quantité.
+
+### Séparation du stock artisan
+
+Une réponse fournisseur ne doit jamais être formulée comme du stock possédé par l'artisan.
+
+Exemple correct :
+
+> Idea Bois — démo indique 180 pièces disponibles, donnée fraîche. Cette disponibilité appartient au fournisseur.
+
+Exemple interdit :
+
+> Tu as 180 pièces en stock.
+
+### Choix fournisseur
+
+Si plusieurs fournisseurs correspondent, Ángel peut les présenter mais ne choisit pas automatiquement « le meilleur » sans règle commerciale validée.
+
+### Actions
+
+La recherche Ángel reste une lecture.
+
+Une demande de devis ou de commande utilise ensuite les brouillons dédiés, avec validation humaine obligatoire.
