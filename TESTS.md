@@ -107,3 +107,14 @@ Résultat de référence actuel : **44 tests réussis sur 44**.
 - brouillon devis soumis à validation ;
 - brouillon commande destiné à Commandes / Achats ;
 - aucune mutation du stock artisan lors d'une recherche fournisseur.
+
+
+## Angèle — stocks fournisseurs
+
+- Ángel passe exclusivement par `SupplierStockService` ;
+- aucun accès direct aux tables fournisseur ;
+- aucune fusion avec le stock artisan ;
+- réponse avec fournisseur, référence, disponibilité, statut et fraîcheur ;
+- donnée sans date conservée comme fraîcheur inconnue ;
+- aucune référence ni quantité inventée si aucun résultat ;
+- plusieurs fournisseurs peuvent être retournés sans recommandation automatique.
