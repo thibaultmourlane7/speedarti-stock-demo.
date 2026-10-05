@@ -77,7 +77,7 @@ export interface StockItem {
   barcode?: string | null;
   photoUrl?: string | null;
   notes?: string | null;
-  secondary: StockSecondaryDefinition | null;
+  secondary?: StockSecondaryDefinition | null;
   active: boolean;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
