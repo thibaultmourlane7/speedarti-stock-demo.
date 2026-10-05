@@ -1,6 +1,7 @@
 import { StockApplicationService } from "../application/stock-application-service";
 import { StockDomainError } from "../core/errors";
-import { StockLocation, StockMovementType, StockUnit } from "../domain/types";
+import { secondaryQuantityView } from "../core/stock-conversion";
+import { StockItem, StockLocation, StockMovementType, StockSecondaryDefinition, StockUnit } from "../domain/types";
 import { LocalStorageStockRepository } from "../repositories/local-storage-stock-repository";
 
 const COMPANY_ID = "demo-company";
@@ -29,6 +30,71 @@ let toastTimer: number | null = null;
 
 function quantity(value: number): string {
   return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 3 }).format(value);
+}
+function unitLabel(unit: StockUnit, value = 2): string {
+  const singular = UNIT_LABELS[unit];
+  if (Math.abs(value) === 1) return singular;
+  if (unit === "piece") return "pièces";
+  if (unit === "boite") return "boîtes";
+  if (unit === "sac") return "sacs";
+  if (unit === "rouleau") return "rouleaux";
+  if (unit === "palette") return "palettes";
+  return singular;
+}
+
+function stockQuantityLines(item: StockItem, primaryQuantity: number): { main: string; secondary: string | null } {
+  const secondary = secondaryQuantityView(item, primaryQuantity);
+  if (!secondary) {
+    return { main: `${quantity(primaryQuantity)} ${unitLabel(item.unit, primaryQuantity)}`, secondary: null };
+  }
+
+  const packagingUnits: StockUnit[] = ["boite", "sac", "rouleau", "palette"];
+  const hasRemainder = secondary.secondaryRemainder > 1e-6;
+  const main = packagingUnits.includes(item.unit) && hasRemainder
+    ? `${secondary.fullPrimaryUnits} ${unitLabel(item.unit, secondary.fullPrimaryUnits)} complètes + ${quantity(secondary.secondaryRemainder)} ${unitLabel(secondary.unit, secondary.secondaryRemainder)}`
+    : `${quantity(primaryQuantity)} ${unitLabel(item.unit, primaryQuantity)}`;
+
+  return {
+    main,
+    secondary: `${quantity(secondary.quantity)} ${unitLabel(secondary.unit, secondary.quantity)} au total`,
+  };
+}
+
+function setUnitOptions(select: HTMLSelectElement, item: StockItem): void {
+  const options = [{ value: item.unit, label: unitLabel(item.unit) }];
+  if (item.secondary) {
+    options.push({ value: item.secondary.secondaryUnit, label: unitLabel(item.secondary.secondaryUnit) });
+  }
+  select.innerHTML = options.map(option => `<option value="${option.value}">${option.label}</option>`).join("");
+  select.value = item.unit;
+}
+
+function secondaryDefinitionFromForm(data: FormData): StockSecondaryDefinition | null {
+  const mode = String(data.get("secondaryMode") ?? "none");
+  if (mode === "none") return null;
+
+  if (mode === "manual") {
+    return {
+      mode: "manual",
+      secondaryUnit: String(data.get("secondaryUnit") ?? "piece") as StockUnit,
+      quantityPerPrimaryUnit: Number(data.get("secondaryPerPrimary") ?? 0),
+    };
+  }
+
+  const lengthM = Number(data.get("lengthM") ?? 0);
+  const lengthMm = lengthM * 1000;
+  if (mode === "length") {
+    return { mode: "length", secondaryUnit: "ml", lengthMm };
+  }
+
+  const widthM = Number(data.get("widthM") ?? 0);
+  const widthMm = widthM * 1000;
+  if (mode === "area") {
+    return { mode: "area", secondaryUnit: "m2", lengthMm, widthMm };
+  }
+
+  const thicknessMm = Number(data.get("thicknessMm") ?? 0);
+  return { mode: "volume", secondaryUnit: "m3", lengthMm, widthMm, thicknessMm };
 }
 function dateLabel(value: string): string {
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
@@ -91,8 +157,14 @@ async function renderStock(): Promise<void> {
   const blocks = await Promise.all(views.map(async ({ item, snapshot, mainLocation }) => {
     const breakdown = await service.locationBreakdown(item.id);
     const locations = breakdown.length
-      ? `<div class="location-breakdown">${breakdown.map(row => `<span><strong>${escapeHtml(row.location.name)}</strong> ${quantity(row.snapshot.physicalQuantity)} ${UNIT_LABELS[item.unit]}</span>`).join("")}</div>`
+      ? `<div class="location-breakdown">${breakdown.map(row => {
+          const local = stockQuantityLines(item, row.snapshot.physicalQuantity);
+          return `<span><strong>${escapeHtml(row.location.name)}</strong> ${escapeHtml(local.main)}${local.secondary ? ` · ${escapeHtml(local.secondary)}` : ""}</span>`;
+        }).join("")}</div>`
       : `<div class="location-breakdown"><span>Aucune quantité physique localisée.</span></div>`;
+    const availableDisplay = stockQuantityLines(item, snapshot.availableQuantity);
+    const physicalDisplay = stockQuantityLines(item, snapshot.physicalQuantity);
+    const reservedDisplay = stockQuantityLines(item, snapshot.reservedQuantity);
     return `
       <article class="stock-card" data-product-id="${escapeHtml(item.id)}">
         <div>
@@ -106,8 +178,8 @@ async function renderStock(): Promise<void> {
           ${locations}
         </div>
         <div class="stock-qty">
-          <strong>${quantity(snapshot.availableQuantity)} ${UNIT_LABELS[item.unit]}</strong>
-          <span>${snapshot.reservedQuantity > 0 ? `${quantity(snapshot.physicalQuantity)} physique · ${quantity(snapshot.reservedQuantity)} réservé` : "disponible"}</span>
+          <strong>${escapeHtml(availableDisplay.main)}</strong>
+          <span>${availableDisplay.secondary ? `${escapeHtml(availableDisplay.secondary)} · ` : ""}${snapshot.reservedQuantity > 0 ? `${escapeHtml(physicalDisplay.main)} physique · ${escapeHtml(reservedDisplay.main)} réservé` : "disponible"}</span>
         </div>
         <div class="stock-actions">
           <button class="button secondary small" data-action="entry">+ Entrée</button>
@@ -277,6 +349,7 @@ async function openMovement(productId: string, mode: "entry" | "exit"): Promise<
   (form.elements.namedItem("chantierId") as HTMLInputElement).value = "";
   (form.elements.namedItem("reason") as HTMLInputElement).value = "";
   const loc = form.elements.namedItem("locationId") as HTMLSelectElement; if (view.item.mainLocationId) loc.value = view.item.mainLocationId;
+  setUnitOptions(form.elements.namedItem("unit") as HTMLSelectElement, view.item);
   $("#movement-title").textContent = mode === "entry" ? "Entrée de stock" : "Sortie de stock";
   $("#movement-eyebrow").textContent = mode === "entry" ? "Réception / ajout" : "Utilisation / chantier";
   $("#movement-product").textContent = `${view.item.name} — ${quantity(view.snapshot.availableQuantity)} ${UNIT_LABELS[view.item.unit]} disponibles`;
@@ -291,6 +364,7 @@ async function openTransfer(productId: string): Promise<void> {
   (form.elements.namedItem("chantierId") as HTMLInputElement).value = "";
   (form.elements.namedItem("reason") as HTMLInputElement).value = "";
   if (view.item.mainLocationId) (form.elements.namedItem("fromLocationId") as HTMLSelectElement).value = view.item.mainLocationId;
+  setUnitOptions(form.elements.namedItem("unit") as HTMLSelectElement, view.item);
   $("#transfer-product").textContent = `${view.item.name} — ${quantity(view.snapshot.availableQuantity)} ${UNIT_LABELS[view.item.unit]} disponibles au total`;
   ($("#transfer-dialog") as HTMLDialogElement).showModal();
 }
@@ -303,6 +377,7 @@ async function openIncident(productId: string): Promise<void> {
   (form.elements.namedItem("reason") as HTMLInputElement).value = "";
   (form.elements.namedItem("chantierId") as HTMLInputElement).value = "";
   if (view.item.mainLocationId) (form.elements.namedItem("locationId") as HTMLSelectElement).value = view.item.mainLocationId;
+  setUnitOptions(form.elements.namedItem("unit") as HTMLSelectElement, view.item);
   $("#incident-product").textContent = view.item.name;
   ($("#incident-dialog") as HTMLDialogElement).showModal();
 }
@@ -318,6 +393,7 @@ async function openReservation(productId: string): Promise<void> {
   if (view.item.mainLocationId) {
     (form.elements.namedItem("locationId") as HTMLSelectElement).value = view.item.mainLocationId;
   }
+  setUnitOptions(form.elements.namedItem("unit") as HTMLSelectElement, view.item);
   $("#reservation-product").textContent = `${view.item.name} — ${quantity(view.snapshot.availableQuantity)} ${UNIT_LABELS[view.item.unit]} disponibles`;
   ($("#reservation-dialog") as HTMLDialogElement).showModal();
 }
@@ -333,6 +409,7 @@ async function openReplenish(productId: string): Promise<void> {
   if (view.item.mainLocationId) {
     (form.elements.namedItem("locationId") as HTMLSelectElement).value = view.item.mainLocationId;
   }
+  setUnitOptions(form.elements.namedItem("unit") as HTMLSelectElement, view.item);
   const threshold = view.item.minimumQuantity === null
     ? "Aucun seuil minimum défini."
     : `Seuil minimum : ${quantity(view.item.minimumQuantity)} ${UNIT_LABELS[view.item.unit]}.`;
@@ -361,27 +438,27 @@ function wireForms(): void {
   const itemForm = $("#item-form") as HTMLFormElement;
   itemForm.addEventListener("submit", async event => { event.preventDefault(); const data = new FormData(itemForm); try {
     const thresholdRaw = String(data.get("minimumQuantity") ?? "").trim();
-    await service.createItem({ name:String(data.get("name")??""), family:String(data.get("family")??""), unit:String(data.get("unit")??"piece") as StockUnit, initialQuantity:Number(data.get("initialQuantity")??0), locationId:String(data.get("locationId")??""), minimumQuantity:thresholdRaw?Number(thresholdRaw):null, internalReference:String(data.get("internalReference")??""), supplierReference:String(data.get("supplierReference")??""), barcode:String(data.get("barcode")??""), notes:String(data.get("notes")??"") });
+    await service.createItem({ name:String(data.get("name")??""), family:String(data.get("family")??""), unit:String(data.get("unit")??"piece") as StockUnit, initialQuantity:Number(data.get("initialQuantity")??0), locationId:String(data.get("locationId")??""), minimumQuantity:thresholdRaw?Number(thresholdRaw):null, internalReference:String(data.get("internalReference")??""), supplierReference:String(data.get("supplierReference")??""), barcode:String(data.get("barcode")??""), notes:String(data.get("notes")??""), secondary:secondaryDefinitionFromForm(data) });
     itemForm.reset(); closeDialog("item-dialog"); showToast("Article ajouté au stock."); await refresh();
   } catch(error){showToast(explainError(error),true);} });
 
   const movementForm = $("#movement-form") as HTMLFormElement;
   movementForm.addEventListener("submit", async event => { event.preventDefault(); const data=new FormData(movementForm); const mode=String(data.get("mode")??""); try {
-    const input={productId:String(data.get("productId")??""),quantity:Number(data.get("quantity")??0),locationId:String(data.get("locationId")??""),chantierId:String(data.get("chantierId")??"").trim()||null,reason:String(data.get("reason")??"").trim()||null};
+    const input={productId:String(data.get("productId")??""),quantity:Number(data.get("quantity")??0),unit:String(data.get("unit")??"piece") as StockUnit,locationId:String(data.get("locationId")??""),chantierId:String(data.get("chantierId")??"").trim()||null,reason:String(data.get("reason")??"").trim()||null};
     if(mode==="entry") await service.recordEntry(input); else await service.recordExit(input);
     closeDialog("movement-dialog"); showToast(mode==="entry"?"Entrée enregistrée.":"Sortie enregistrée."); await refresh();
   }catch(error){showToast(explainError(error),true);} });
 
   const transferForm = $("#transfer-form") as HTMLFormElement;
   transferForm.addEventListener("submit", async event => { event.preventDefault(); const data=new FormData(transferForm); try {
-    await service.transferStock({productId:String(data.get("productId")??""),quantity:Number(data.get("quantity")??0),fromLocationId:String(data.get("fromLocationId")??""),toLocationId:String(data.get("toLocationId")??""),chantierId:String(data.get("chantierId")??"").trim()||null,reason:String(data.get("reason")??"").trim()||null});
+    await service.transferStock({productId:String(data.get("productId")??""),quantity:Number(data.get("quantity")??0),unit:String(data.get("unit")??"piece") as StockUnit,fromLocationId:String(data.get("fromLocationId")??""),toLocationId:String(data.get("toLocationId")??""),chantierId:String(data.get("chantierId")??"").trim()||null,reason:String(data.get("reason")??"").trim()||null});
     closeDialog("transfer-dialog"); showToast("Transfert enregistré."); await refresh();
   }catch(error){showToast(explainError(error),true);} });
 
   const incidentForm = $("#incident-form") as HTMLFormElement;
   incidentForm.addEventListener("submit", async event => { event.preventDefault(); const data=new FormData(incidentForm); try {
     const kind=String(data.get("kind")??"LOSS");
-    const input={productId:String(data.get("productId")??""),quantity:Number(data.get("quantity")??0),locationId:String(data.get("locationId")??""),chantierId:String(data.get("chantierId")??"").trim()||null,reason:String(data.get("reason")??"").trim()||null};
+    const input={productId:String(data.get("productId")??""),quantity:Number(data.get("quantity")??0),unit:String(data.get("unit")??"piece") as StockUnit,locationId:String(data.get("locationId")??""),chantierId:String(data.get("chantierId")??"").trim()||null,reason:String(data.get("reason")??"").trim()||null};
     if(kind==="BREAKAGE") await service.recordBreakage(input); else if(kind==="SITE_RETURN") await service.recordSiteReturn(input); else await service.recordLoss(input);
     closeDialog("incident-dialog"); showToast("Mouvement enregistré."); await refresh();
   }catch(error){showToast(explainError(error),true);} });
@@ -394,6 +471,7 @@ function wireForms(): void {
       await service.createReservation({
         productId: String(data.get("productId") ?? ""),
         quantity: Number(data.get("quantity") ?? 0),
+        unit: String(data.get("unit") ?? "piece") as StockUnit,
         locationId: String(data.get("locationId") ?? ""),
         chantierId: String(data.get("chantierId") ?? "").trim(),
         reason: String(data.get("reason") ?? "").trim() || null,
@@ -414,6 +492,7 @@ function wireForms(): void {
       await service.createPurchaseRequirement({
         productId: String(data.get("productId") ?? ""),
         quantity: Number(data.get("quantity") ?? 0),
+        unit: String(data.get("unit") ?? "piece") as StockUnit,
         locationId: String(data.get("locationId") ?? "") || null,
         chantierId: String(data.get("chantierId") ?? "").trim() || null,
         reason: String(data.get("reason") ?? "").trim() || null,
@@ -433,6 +512,19 @@ function wireForms(): void {
   }catch(error){showToast(explainError(error),true);} });
 }
 
+function wireSecondaryFields(): void {
+  const mode = $("#secondary-mode") as HTMLSelectElement;
+  const groups = Array.from(document.querySelectorAll<HTMLElement>("[data-secondary-group]"));
+  const refreshFields = () => {
+    const selected = mode.value;
+    groups.forEach(group => {
+      group.hidden = group.dataset.secondaryGroup !== selected;
+    });
+  };
+  mode.addEventListener("change", refreshFields);
+  refreshFields();
+}
+
 function wireSearch(): void {
   const input=$("#search-input") as HTMLInputElement;
   input.addEventListener("input",async()=>{search=input.value;await renderStock();});
@@ -443,5 +535,5 @@ function wireInventory(): void {
   $("#refresh-inventory-button").addEventListener("click",()=>{void renderInventory();});
 }
 
-async function main():Promise<void>{wireTabs();wireDialogs();wireForms();wireSearch();wireInventory();await service.initialize();await refresh();}
+async function main():Promise<void>{wireTabs();wireDialogs();wireForms();wireSecondaryFields();wireSearch();wireInventory();await service.initialize();await refresh();}
 main().catch(error=>{showToast(explainError(error),true);console.error(error);});
