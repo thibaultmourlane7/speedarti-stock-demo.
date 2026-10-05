@@ -155,3 +155,25 @@ Restent à faire :
 - monitoring des erreurs de synchronisation en production.
 
 Ces raccordements réels resteront à intégrer ultérieurement dans SpeedArti par Anne-Sophie.
+
+
+## Ángel fournisseur
+
+La tranche est complétée par `AngelSupplierSearchService`.
+
+Ángel :
+
+- interroge `SupplierStockService` ;
+- ne lit aucune table fournisseur directement ;
+- restitue fournisseur, référence, disponibilité, statut et fraîcheur ;
+- conserve les données inconnues comme inconnues ;
+- ne fusionne jamais cette disponibilité avec le stock artisan ;
+- ne recommande pas automatiquement un fournisseur.
+
+La démo publique contient un bloc permettant de tester cette recherche avec Ángel.
+
+## État du Sprint F
+
+Le périmètre fonctionnel prévu dans la démo est terminé.
+
+Le passage à un **vrai stock fournisseur connecté** nécessite ensuite, fournisseur par fournisseur, la documentation et les accès de son ERP/API. Cette étape ne peut pas être simulée comme si elle était réelle.
