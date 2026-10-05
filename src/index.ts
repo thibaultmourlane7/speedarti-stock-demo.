@@ -9,3 +9,7 @@ export * from "./stock/integrations/connector-registry";
 export * from "./stock/angele/knowledge-pack";
 
 export * from "./stock/integrations/stock-integration-service";
+
+export * from "./stock/suppliers/types";
+export * from "./stock/suppliers/supplier-service";
+export * from "./stock/suppliers/demo-adapters";
