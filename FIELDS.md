@@ -157,3 +157,29 @@ total secondaire = 770 vis
 ```
 
 Il n'existe donc jamais deux quantités indépendantes susceptibles de se désynchroniser.
+
+
+## SupplierAvailability — disponibilité fournisseur
+
+Cette structure est strictement séparée de `StockItem` et de `StockMovement`.
+
+| Champ | Type | Rôle |
+|---|---|---|
+| `supplierId` | string | fournisseur |
+| `supplierName` | string | libellé fournisseur |
+| `supplierProductId` | string | identifiant produit dans le SI fournisseur |
+| `supplierReference` | string | référence fournisseur |
+| `productId` | string/null | mapping éventuel vers Catalogue SpeedArti |
+| `designation` | string | désignation fournisseur |
+| `availableQuantity` | number/null | disponibilité annoncée par le fournisseur |
+| `unit` | StockUnit | unité explicite |
+| `priceHt` | number/null | prix HT si réellement fourni |
+| `stockStatus` | enum | disponible/faible/rupture/sur commande/inconnu |
+| `lastSyncAt` | ISO/null | fraîcheur de l'information |
+| `depotId/depotName` | string/null | dépôt fournisseur éventuel |
+| `source` | enum | démo, ERP/API ou synchronisation fichier |
+| `isDemo` | boolean | évite toute confusion avec des données réelles |
+
+**Interdit :** recopier `availableQuantity` dans le stock physique artisan.
+
+Plusieurs lignes fournisseur peuvent partager le même `productId` SpeedArti.
