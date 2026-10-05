@@ -1,4 +1,5 @@
 import { StockDomainError } from "../core/errors";
+import { convertQuantityToPrimary, validateSecondaryDefinition } from "../core/stock-conversion";
 import { StockEngine } from "../core/stock-engine";
 import {
   Id,
@@ -10,6 +11,7 @@ import {
   StockMovementType,
   StockPurchaseRequirement,
   StockReservation,
+  StockSecondaryDefinition,
   StockSnapshot,
   StockUnit,
 } from "../domain/types";
@@ -36,6 +38,7 @@ export interface CreateItemInput {
   supplierReference?: string | null;
   barcode?: string | null;
   notes?: string | null;
+  secondary?: StockSecondaryDefinition | null;
 }
 
 export interface CreateLocationInput {
@@ -48,6 +51,7 @@ export interface CreateLocationInput {
 export interface RecordMovementInput {
   productId: Id;
   quantity: number;
+  unit?: StockUnit;
   locationId: Id;
   chantierId?: Id | null;
   reason?: string | null;
@@ -56,6 +60,7 @@ export interface RecordMovementInput {
 export interface CreateReservationInput {
   productId: Id;
   quantity: number;
+  unit?: StockUnit;
   locationId: Id;
   chantierId: Id;
   reason?: string | null;
@@ -64,6 +69,7 @@ export interface CreateReservationInput {
 export interface CreatePurchaseRequirementInput {
   productId: Id;
   quantity: number;
+  unit?: StockUnit;
   locationId?: Id | null;
   chantierId?: Id | null;
   reason?: string | null;
@@ -72,6 +78,7 @@ export interface CreatePurchaseRequirementInput {
 export interface TransferStockInput {
   productId: Id;
   quantity: number;
+  unit?: StockUnit;
   fromLocationId: Id;
   toLocationId: Id;
   chantierId?: Id | null;
@@ -218,6 +225,7 @@ export class StockApplicationService {
     ) {
       throw new StockDomainError("INVALID_QUANTITY", "Le seuil minimum doit être positif ou nul.");
     }
+    validateSecondaryDefinition(input.unit, input.secondary ?? null);
 
     const defaultLocation = await this.initialize();
     const locationId = input.locationId ?? defaultLocation.id;
@@ -240,6 +248,7 @@ export class StockApplicationService {
       supplierReference: text(input.supplierReference) || null,
       barcode: text(input.barcode) || null,
       notes: text(input.notes) || null,
+      secondary: input.secondary ?? null,
       active: true,
       createdAt: at,
       updatedAt: at,
@@ -265,10 +274,11 @@ export class StockApplicationService {
 
   async recordEntry(input: RecordMovementInput): Promise<StockMovement> {
     const item = await this.requireItem(input.productId);
+    const primaryQuantity = convertQuantityToPrimary(item, input.quantity, input.unit);
     return this.engine.applyMovement({
       companyId: this.companyId,
       productId: item.id,
-      quantity: input.quantity,
+      quantity: primaryQuantity,
       unit: item.unit,
       movementType: "ENTRY",
       locationToId: input.locationId,
@@ -294,10 +304,11 @@ export class StockApplicationService {
 
   async recordSiteReturn(input: RecordMovementInput): Promise<StockMovement> {
     const item = await this.requireItem(input.productId);
+    const primaryQuantity = convertQuantityToPrimary(item, input.quantity, input.unit);
     return this.engine.applyMovement({
       companyId: this.companyId,
       productId: item.id,
-      quantity: input.quantity,
+      quantity: primaryQuantity,
       unit: item.unit,
       movementType: "SITE_RETURN",
       locationToId: input.locationId,
@@ -311,13 +322,14 @@ export class StockApplicationService {
 
   async transferStock(input: TransferStockInput): Promise<StockMovement> {
     const item = await this.requireItem(input.productId);
+    const primaryQuantity = convertQuantityToPrimary(item, input.quantity, input.unit);
     if (input.fromLocationId === input.toLocationId) {
       throw new StockDomainError("INVALID_MOVEMENT", "Le départ et l'arrivée doivent être différents.");
     }
     return this.engine.applyMovement({
       companyId: this.companyId,
       productId: item.id,
-      quantity: input.quantity,
+      quantity: primaryQuantity,
       unit: item.unit,
       movementType: "TRANSFER",
       locationFromId: input.fromLocationId,
@@ -336,10 +348,11 @@ export class StockApplicationService {
     if (!chantierId) {
       throw new StockDomainError("VALIDATION_REQUIRED", "Le chantier est obligatoire pour réserver du stock.");
     }
+    const primaryQuantity = convertQuantityToPrimary(item, input.quantity, input.unit);
     return this.engine.reserve({
       companyId: this.companyId,
       productId: item.id,
-      quantity: input.quantity,
+      quantity: primaryQuantity,
       unit: item.unit,
       locationId: input.locationId,
       chantierId,
@@ -382,6 +395,7 @@ export class StockApplicationService {
     if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
       throw new StockDomainError("INVALID_QUANTITY", "La quantité à réapprovisionner doit être strictement positive.");
     }
+    const primaryQuantity = convertQuantityToPrimary(item, input.quantity, input.unit);
     const locationId = input.locationId ?? item.mainLocationId ?? null;
     if (locationId) {
       const location = await this.repository.getLocation(this.companyId, locationId);
@@ -397,7 +411,7 @@ export class StockApplicationService {
       productId: item.id,
       locationId,
       chantierId: text(input.chantierId) || null,
-      quantity: input.quantity,
+      quantity: primaryQuantity,
       unit: item.unit,
       status: "DRAFT",
       reason: text(input.reason) || null,
@@ -575,10 +589,11 @@ export class StockApplicationService {
     input: RecordMovementInput,
   ): Promise<StockMovement> {
     const item = await this.requireItem(input.productId);
+    const primaryQuantity = convertQuantityToPrimary(item, input.quantity, input.unit);
     return this.engine.applyMovement({
       companyId: this.companyId,
       productId: item.id,
-      quantity: input.quantity,
+      quantity: primaryQuantity,
       unit: item.unit,
       movementType,
       locationFromId: input.locationId,
