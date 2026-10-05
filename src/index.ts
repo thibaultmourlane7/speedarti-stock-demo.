@@ -6,3 +6,5 @@ export * from "./stock/repositories/stock-repository";
 export * from "./stock/integrations/contracts";
 export * from "./stock/integrations/connector-registry";
 export * from "./stock/angele/knowledge-pack";
+
+export * from "./stock/integrations/stock-integration-service";
