@@ -4,6 +4,7 @@ import {
   StockLocation,
   StockMovement,
   StockOffcut,
+  StockPurchaseRequirement,
   StockReservation,
 } from "../domain/types";
 import { StockRepository } from "./stock-repository";
@@ -13,6 +14,7 @@ export class InMemoryStockRepository implements StockRepository {
   private locations = new Map<string, StockLocation>();
   private movements: StockMovement[] = [];
   private reservations = new Map<string, StockReservation>();
+  private purchaseRequirements = new Map<string, StockPurchaseRequirement>();
   private sourceEvents = new Set<string>();
   private offcuts = new Map<string, StockOffcut>();
 
@@ -57,7 +59,13 @@ export class InMemoryStockRepository implements StockRepository {
   }
 
   async listReservations(companyId: Id, productId: Id): Promise<StockReservation[]> {
-    return structuredClone([...this.reservations.values()].filter(x => x.companyId === companyId && x.productId === productId));
+    return structuredClone([...this.reservations.values()].filter(
+      x => x.companyId === companyId && x.productId === productId,
+    ));
+  }
+
+  async listAllReservations(companyId: Id): Promise<StockReservation[]> {
+    return structuredClone([...this.reservations.values()].filter(x => x.companyId === companyId));
   }
 
   async getReservation(companyId: Id, reservationId: Id): Promise<StockReservation | null> {
@@ -66,6 +74,17 @@ export class InMemoryStockRepository implements StockRepository {
 
   async saveReservation(reservation: StockReservation): Promise<void> {
     this.reservations.set(this.key(reservation.companyId, reservation.id), structuredClone(reservation));
+  }
+
+  async listPurchaseRequirements(companyId: Id): Promise<StockPurchaseRequirement[]> {
+    return structuredClone([...this.purchaseRequirements.values()].filter(x => x.companyId === companyId));
+  }
+
+  async savePurchaseRequirement(requirement: StockPurchaseRequirement): Promise<void> {
+    this.purchaseRequirements.set(
+      this.key(requirement.companyId, requirement.id),
+      structuredClone(requirement),
+    );
   }
 
   async hasProcessedSourceEvent(companyId: Id, sourceEventId: string): Promise<boolean> {
