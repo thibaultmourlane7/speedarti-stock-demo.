@@ -27,6 +27,7 @@
     <nav class="tabs" aria-label="Navigation Stock">
       <button class="tab active" data-tab="stock">Mon stock</button>
       <button class="tab" data-tab="alerts">Alertes</button>
+      <button class="tab" data-tab="suppliers">Stocks fournisseurs</button>
       <button class="tab" data-tab="needs">Réservations & achats</button>
       <button class="tab" data-tab="inventory">Inventaire</button>
       <button class="tab" data-tab="history">Mouvements</button>
@@ -44,6 +45,27 @@
     <section id="alerts-panel" class="panel">
       <div class="section-heading"><div><h2>Alertes Stock</h2><p>Ruptures, seuils faibles et écarts d'inventaire visibles au même endroit.</p></div></div>
       <div id="alert-list" class="alert-list"></div>
+    </section>
+
+    <section id="suppliers-panel" class="panel">
+      <div class="section-heading">
+        <div>
+          <h2>Stocks fournisseurs</h2>
+          <p>Disponibilité externe séparée de votre stock réellement possédé.</p>
+        </div>
+      </div>
+      <div class="supplier-separation-banner">
+        <strong>Important :</strong> une quantité affichée ici appartient au fournisseur. Elle n'augmente jamais votre stock artisan tant qu'une réception réelle n'a pas été validée.
+      </div>
+      <div class="info-banner">
+        Sprint fournisseur en mode démonstration : <strong>Idea Bois — démo</strong> et un fournisseur BTP fictif. Aucun stock, prix ou catalogue ERP réel n'est affiché.
+      </div>
+      <div class="toolbar">
+        <label class="search"><span aria-hidden="true">⌕</span><input id="supplier-search-input" type="search" placeholder="Rechercher chez les fournisseurs…"></label>
+      </div>
+      <div id="supplier-draft" class="supplier-draft" hidden></div>
+      <div id="supplier-list" class="supplier-list"></div>
+      <p class="supplier-footnote">Les résultats sont informatifs : aucun fournisseur n'est recommandé automatiquement. Une commande ou demande de devis reste soumise à validation humaine.</p>
     </section>
 
     <section id="needs-panel" class="panel">
