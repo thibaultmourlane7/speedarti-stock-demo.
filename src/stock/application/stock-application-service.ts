@@ -8,6 +8,8 @@ import {
   StockLocationType,
   StockMovement,
   StockMovementType,
+  StockPurchaseRequirement,
+  StockReservation,
   StockSnapshot,
   StockUnit,
 } from "../domain/types";
@@ -51,6 +53,22 @@ export interface RecordMovementInput {
   reason?: string | null;
 }
 
+export interface CreateReservationInput {
+  productId: Id;
+  quantity: number;
+  locationId: Id;
+  chantierId: Id;
+  reason?: string | null;
+}
+
+export interface CreatePurchaseRequirementInput {
+  productId: Id;
+  quantity: number;
+  locationId?: Id | null;
+  chantierId?: Id | null;
+  reason?: string | null;
+}
+
 export interface TransferStockInput {
   productId: Id;
   quantity: number;
@@ -84,6 +102,18 @@ export interface ItemStockView {
   mainLocation: StockLocation | null;
 }
 
+export interface ReservationView {
+  reservation: StockReservation;
+  item: StockItem;
+  location: StockLocation | null;
+}
+
+export interface PurchaseRequirementView {
+  requirement: StockPurchaseRequirement;
+  item: StockItem;
+  location: StockLocation | null;
+}
+
 export interface LocationStockView {
   location: StockLocation;
   snapshot: StockSnapshot;
@@ -109,6 +139,8 @@ export interface DashboardSummary {
   lowStockCount: number;
   outOfStockCount: number;
   movementCount: number;
+  activeReservationCount: number;
+  purchaseRequirementCount: number;
 }
 
 function text(value: unknown): string {
@@ -298,6 +330,108 @@ export class StockApplicationService {
     });
   }
 
+  async createReservation(input: CreateReservationInput): Promise<StockReservation> {
+    const item = await this.requireItem(input.productId);
+    const chantierId = text(input.chantierId);
+    if (!chantierId) {
+      throw new StockDomainError("VALIDATION_REQUIRED", "Le chantier est obligatoire pour réserver du stock.");
+    }
+    return this.engine.reserve({
+      companyId: this.companyId,
+      productId: item.id,
+      quantity: input.quantity,
+      unit: item.unit,
+      locationId: input.locationId,
+      chantierId,
+      userId: this.userId,
+      sourceModule: "stock_ui",
+      sourceId: chantierId,
+    });
+  }
+
+  async releaseReservation(reservationId: Id): Promise<StockReservation> {
+    return this.engine.releaseReservation(this.companyId, reservationId);
+  }
+
+  async listActiveReservations(): Promise<ReservationView[]> {
+    const [reservations, items, locations] = await Promise.all([
+      this.repository.listAllReservations(this.companyId),
+      this.repository.listItems(this.companyId),
+      this.repository.listLocations(this.companyId),
+    ]);
+    const itemMap = new Map(items.map(item => [item.id, item]));
+    const locationMap = new Map(locations.map(location => [location.id, location]));
+    return reservations
+      .filter(reservation => reservation.status === "ACTIVE")
+      .map(reservation => {
+        const item = itemMap.get(reservation.productId);
+        if (!item) return null;
+        return {
+          reservation,
+          item,
+          location: reservation.locationId ? locationMap.get(reservation.locationId) ?? null : null,
+        } satisfies ReservationView;
+      })
+      .filter((value): value is ReservationView => value !== null)
+      .sort((a, b) => b.reservation.createdAt.localeCompare(a.reservation.createdAt));
+  }
+
+  async createPurchaseRequirement(input: CreatePurchaseRequirementInput): Promise<StockPurchaseRequirement> {
+    const item = await this.requireItem(input.productId);
+    if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
+      throw new StockDomainError("INVALID_QUANTITY", "La quantité à réapprovisionner doit être strictement positive.");
+    }
+    const locationId = input.locationId ?? item.mainLocationId ?? null;
+    if (locationId) {
+      const location = await this.repository.getLocation(this.companyId, locationId);
+      if (!location || !location.active) {
+        throw new StockDomainError("LOCATION_NOT_FOUND", "Emplacement de réapprovisionnement introuvable.");
+      }
+    }
+
+    const at = this.now();
+    const requirement: StockPurchaseRequirement = {
+      id: this.id(),
+      companyId: this.companyId,
+      productId: item.id,
+      locationId,
+      chantierId: text(input.chantierId) || null,
+      quantity: input.quantity,
+      unit: item.unit,
+      status: "DRAFT",
+      reason: text(input.reason) || null,
+      sourceModule: "stock_ui",
+      sourceId: item.id,
+      createdBy: this.userId,
+      createdAt: at,
+      updatedAt: at,
+    };
+    await this.repository.savePurchaseRequirement(requirement);
+    return requirement;
+  }
+
+  async listPurchaseRequirements(): Promise<PurchaseRequirementView[]> {
+    const [requirements, items, locations] = await Promise.all([
+      this.repository.listPurchaseRequirements(this.companyId),
+      this.repository.listItems(this.companyId),
+      this.repository.listLocations(this.companyId),
+    ]);
+    const itemMap = new Map(items.map(item => [item.id, item]));
+    const locationMap = new Map(locations.map(location => [location.id, location]));
+    return requirements
+      .map(requirement => {
+        const item = itemMap.get(requirement.productId);
+        if (!item) return null;
+        return {
+          requirement,
+          item,
+          location: requirement.locationId ? locationMap.get(requirement.locationId) ?? null : null,
+        } satisfies PurchaseRequirementView;
+      })
+      .filter((value): value is PurchaseRequirementView => value !== null)
+      .sort((a, b) => b.requirement.createdAt.localeCompare(a.requirement.createdAt));
+  }
+
   async applyInventoryCount(input: InventoryCorrectionInput): Promise<InventoryCorrectionResult> {
     if (!Number.isFinite(input.countedQuantity) || input.countedQuantity < 0) {
       throw new StockDomainError("INVALID_QUANTITY", "La quantité comptée doit être positive ou nulle.");
@@ -419,15 +553,19 @@ export class StockApplicationService {
   }
 
   async dashboard(): Promise<DashboardSummary> {
-    const [views, movements] = await Promise.all([
+    const [views, movements, reservations, requirements] = await Promise.all([
       this.listItemViews(),
       this.repository.listAllMovements(this.companyId),
+      this.repository.listAllReservations(this.companyId),
+      this.repository.listPurchaseRequirements(this.companyId),
     ]);
     return {
       articleCount: views.length,
       lowStockCount: views.filter(x => x.snapshot.status === "LOW_STOCK").length,
       outOfStockCount: views.filter(x => x.snapshot.status === "OUT_OF_STOCK").length,
       movementCount: movements.length,
+      activeReservationCount: reservations.filter(x => x.status === "ACTIVE").length,
+      purchaseRequirementCount: requirements.filter(x => x.status === "DRAFT").length,
     };
   }
 
