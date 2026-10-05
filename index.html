@@ -20,10 +20,13 @@
       <article class="stat-card warning"><span>Stock faible</span><strong id="stat-low">0</strong></article>
       <article class="stat-card danger"><span>Ruptures</span><strong id="stat-out">0</strong></article>
       <article class="stat-card"><span>Mouvements</span><strong id="stat-movements">0</strong></article>
+      <article class="stat-card"><span>Réservations</span><strong id="stat-reservations">0</strong></article>
+      <article class="stat-card"><span>Besoins d'achat</span><strong id="stat-replenish">0</strong></article>
     </section>
 
     <nav class="tabs" aria-label="Navigation Stock">
       <button class="tab active" data-tab="stock">Mon stock</button>
+      <button class="tab" data-tab="needs">Réservations & achats</button>
       <button class="tab" data-tab="inventory">Inventaire</button>
       <button class="tab" data-tab="history">Mouvements</button>
       <button class="tab" data-tab="locations">Emplacements</button>
@@ -32,6 +35,15 @@
     <section id="stock-panel" class="panel active">
       <div class="toolbar"><label class="search"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="Rechercher un produit, une référence…"></label></div>
       <div id="stock-list" class="stock-list"></div>
+    </section>
+
+    <section id="needs-panel" class="panel">
+      <div class="section-heading"><div><h2>Réservations chantier</h2><p>Le stock réservé reste physiquement présent, mais n'est plus disponible pour un autre besoin.</p></div></div>
+      <div class="info-banner">Une réservation ne crée aucune sortie physique. La sortie réelle reste une action distincte et validée.</div>
+      <div id="reservation-list" class="reservation-list"></div>
+
+      <div class="section-heading needs-second-heading"><div><h2>Besoins de réapprovisionnement</h2><p>Le Stock prépare le besoin. Le module Commandes / Achats reste propriétaire de la vraie commande fournisseur.</p></div></div>
+      <div id="requirement-list" class="requirement-list"></div>
     </section>
 
     <section id="inventory-panel" class="panel">
@@ -88,6 +100,27 @@
   <label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required></label><label>Emplacement<select name="locationId" id="incident-location-select"></select></label>
   <label>Chantier <span class="optional">(facultatif)</span><input name="chantierId"></label><label>Motif <span class="optional">(facultatif)</span><input name="reason"></label>
   <div class="dialog-actions"><button type="button" class="button ghost" data-close="incident-dialog">Annuler</button><button class="button primary">Valider</button></div>
+</form></dialog>
+
+<dialog id="reservation-dialog"><form id="reservation-form" method="dialog" class="dialog-form">
+  <div class="dialog-head"><div><span class="eyebrow">Réservation chantier</span><h2>Réserver du stock</h2></div><button type="button" class="icon-button" data-close="reservation-dialog">×</button></div>
+  <input type="hidden" name="productId"><div class="movement-product" id="reservation-product"></div>
+  <label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required></label>
+  <label>Emplacement<select name="locationId" id="reservation-location-select" required></select></label>
+  <label>Chantier<input name="chantierId" required placeholder="Ex. Dupont / CH-2026-014"></label>
+  <label>Motif <span class="optional">(facultatif)</span><input name="reason" placeholder="Ex. Matériel prévu pour lundi"></label>
+  <div class="dialog-actions"><button type="button" class="button ghost" data-close="reservation-dialog">Annuler</button><button class="button primary">Réserver</button></div>
+</form></dialog>
+
+<dialog id="replenish-dialog"><form id="replenish-form" method="dialog" class="dialog-form">
+  <div class="dialog-head"><div><span class="eyebrow">Réapprovisionnement</span><h2>Préparer un besoin d'achat</h2></div><button type="button" class="icon-button" data-close="replenish-dialog">×</button></div>
+  <input type="hidden" name="productId"><div class="movement-product" id="replenish-product"></div>
+  <div class="info-banner compact">Aucune commande n'est créée ici. Ce brouillon est destiné au futur module Commandes / Achats.</div>
+  <label>Quantité à acheter<input name="quantity" type="number" min="0.000001" step="any" required placeholder="Saisir la quantité"></label>
+  <label>Emplacement prévu<select name="locationId" id="replenish-location-select"></select></label>
+  <label>Chantier <span class="optional">(facultatif)</span><input name="chantierId"></label>
+  <label>Motif <span class="optional">(facultatif)</span><input name="reason" placeholder="Ex. Rupture prochaine"></label>
+  <div class="dialog-actions"><button type="button" class="button ghost" data-close="replenish-dialog">Annuler</button><button class="button primary">Préparer le besoin</button></div>
 </form></dialog>
 
 <dialog id="location-dialog"><form id="location-form" method="dialog" class="dialog-form">
