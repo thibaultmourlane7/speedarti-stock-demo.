@@ -256,6 +256,19 @@ export class StockApplicationService {
     }
     validateSecondaryDefinition(input.unit, input.secondary ?? null);
 
+    const barcode = text(input.barcode) || null;
+    if (barcode) {
+      const items = await this.repository.listItems(this.companyId);
+      const duplicateBarcode = items.find(item => item.active && text(item.barcode) === barcode);
+      if (duplicateBarcode) {
+        throw new StockDomainError(
+          "INVALID_ITEM",
+          "Ce code-barres est déjà associé à un autre article.",
+          { barcode, existingProductId: duplicateBarcode.id },
+        );
+      }
+    }
+
     const defaultLocation = await this.initialize();
     const locationId = input.locationId ?? defaultLocation.id;
     const location = await this.repository.getLocation(this.companyId, locationId);
@@ -275,7 +288,7 @@ export class StockApplicationService {
       minimumQuantity: input.minimumQuantity ?? null,
       mainLocationId: locationId,
       supplierReference: text(input.supplierReference) || null,
-      barcode: text(input.barcode) || null,
+      barcode,
       notes: text(input.notes) || null,
       secondary: input.secondary ?? null,
       active: true,
