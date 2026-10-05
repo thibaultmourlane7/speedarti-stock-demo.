@@ -81,13 +81,13 @@ function secondaryDefinitionFromForm(data: FormData): StockSecondaryDefinition |
     };
   }
 
-  const lengthM = Number(data.get("lengthM") ?? 0);
+  const lengthM = Number(data.get(mode === "length" ? "lengthOnlyM" : mode === "area" ? "areaLengthM" : "volumeLengthM") ?? 0);
   const lengthMm = lengthM * 1000;
   if (mode === "length") {
     return { mode: "length", secondaryUnit: "ml", lengthMm };
   }
 
-  const widthM = Number(data.get("widthM") ?? 0);
+  const widthM = Number(data.get(mode === "area" ? "areaWidthM" : "volumeWidthM") ?? 0);
   const widthMm = widthM * 1000;
   if (mode === "area") {
     return { mode: "area", secondaryUnit: "m2", lengthMm, widthMm };
