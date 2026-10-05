@@ -7,6 +7,7 @@ import {
   StockLocation,
   StockLocationType,
   StockMovement,
+  StockMovementType,
   StockSnapshot,
   StockUnit,
 } from "../domain/types";
@@ -19,6 +20,8 @@ export const STOCK_UNITS: readonly StockUnit[] = [
 export const DEFAULT_STOCK_FAMILIES = [
   "materiaux", "fournitures", "consommables", "outillage",
 ] as const;
+
+const EPSILON = 1e-9;
 
 export interface CreateItemInput {
   name: string;
@@ -48,10 +51,50 @@ export interface RecordMovementInput {
   reason?: string | null;
 }
 
+export interface TransferStockInput {
+  productId: Id;
+  quantity: number;
+  fromLocationId: Id;
+  toLocationId: Id;
+  chantierId?: Id | null;
+  reason?: string | null;
+}
+
+export interface StockIncidentInput extends RecordMovementInput {
+  movementType: "LOSS" | "BREAKAGE";
+}
+
+export interface InventoryCorrectionInput {
+  productId: Id;
+  locationId: Id;
+  countedQuantity: number;
+  reason?: string | null;
+}
+
+export interface InventoryCorrectionResult {
+  theoreticalQuantity: number;
+  countedQuantity: number;
+  difference: number;
+  movement: StockMovement | null;
+}
+
 export interface ItemStockView {
   item: StockItem;
   snapshot: StockSnapshot;
   mainLocation: StockLocation | null;
+}
+
+export interface LocationStockView {
+  location: StockLocation;
+  snapshot: StockSnapshot;
+}
+
+export interface InventoryRow {
+  item: StockItem;
+  location: StockLocation;
+  theoreticalQuantity: number;
+  reservedQuantity: number;
+  availableQuantity: number;
 }
 
 export interface MovementHistoryRow {
@@ -97,7 +140,6 @@ export class StockApplicationService {
     const locations = await this.repository.listLocations(this.companyId);
     const existing = locations.find(x => x.active && x.name === "Dépôt principal");
     if (existing) return existing;
-    if (locations.some(x => x.active)) return locations.find(x => x.active)!;
     return this.createLocation({ name: "Dépôt principal", type: "depot" });
   }
 
@@ -127,10 +169,15 @@ export class StockApplicationService {
   async createItem(input: CreateItemInput): Promise<StockItem> {
     const name = text(input.name);
     const family = text(input.family);
+    const initialQuantity = input.initialQuantity ?? 0;
+
     if (!name) throw new StockDomainError("INVALID_ITEM", "La désignation est obligatoire.");
     if (!family) throw new StockDomainError("INVALID_ITEM", "La famille est obligatoire.");
     if (!STOCK_UNITS.includes(input.unit)) {
       throw new StockDomainError("INVALID_UNIT", "Unité Stock inconnue.", { unit: input.unit });
+    }
+    if (!Number.isFinite(initialQuantity) || initialQuantity < 0) {
+      throw new StockDomainError("INVALID_QUANTITY", "La quantité initiale doit être positive ou nulle.");
     }
     if (
       input.minimumQuantity !== undefined &&
@@ -167,10 +214,6 @@ export class StockApplicationService {
     };
     await this.repository.saveItem(item);
 
-    const initialQuantity = input.initialQuantity ?? 0;
-    if (!Number.isFinite(initialQuantity) || initialQuantity < 0) {
-      throw new StockDomainError("INVALID_QUANTITY", "La quantité initiale doit être positive ou nulle.");
-    }
     if (initialQuantity > 0) {
       await this.engine.applyMovement({
         companyId: this.companyId,
@@ -206,20 +249,126 @@ export class StockApplicationService {
   }
 
   async recordExit(input: RecordMovementInput): Promise<StockMovement> {
+    return this.recordOutgoingMovement("EXIT", input);
+  }
+
+  async recordLoss(input: RecordMovementInput): Promise<StockMovement> {
+    return this.recordOutgoingMovement("LOSS", input);
+  }
+
+  async recordBreakage(input: RecordMovementInput): Promise<StockMovement> {
+    return this.recordOutgoingMovement("BREAKAGE", input);
+  }
+
+  async recordSiteReturn(input: RecordMovementInput): Promise<StockMovement> {
     const item = await this.requireItem(input.productId);
     return this.engine.applyMovement({
       companyId: this.companyId,
       productId: item.id,
       quantity: input.quantity,
       unit: item.unit,
-      movementType: "EXIT",
-      locationFromId: input.locationId,
+      movementType: "SITE_RETURN",
+      locationToId: input.locationId,
       chantierId: input.chantierId ?? null,
       userId: this.userId,
       sourceModule: "stock_ui",
       sourceId: item.id,
-      reason: text(input.reason) || null,
+      reason: text(input.reason) || "Retour chantier",
     });
+  }
+
+  async transferStock(input: TransferStockInput): Promise<StockMovement> {
+    const item = await this.requireItem(input.productId);
+    if (input.fromLocationId === input.toLocationId) {
+      throw new StockDomainError("INVALID_MOVEMENT", "Le départ et l'arrivée doivent être différents.");
+    }
+    return this.engine.applyMovement({
+      companyId: this.companyId,
+      productId: item.id,
+      quantity: input.quantity,
+      unit: item.unit,
+      movementType: "TRANSFER",
+      locationFromId: input.fromLocationId,
+      locationToId: input.toLocationId,
+      chantierId: input.chantierId ?? null,
+      userId: this.userId,
+      sourceModule: "stock_ui",
+      sourceId: item.id,
+      reason: text(input.reason) || "Transfert",
+    });
+  }
+
+  async applyInventoryCount(input: InventoryCorrectionInput): Promise<InventoryCorrectionResult> {
+    if (!Number.isFinite(input.countedQuantity) || input.countedQuantity < 0) {
+      throw new StockDomainError("INVALID_QUANTITY", "La quantité comptée doit être positive ou nulle.");
+    }
+    const item = await this.requireItem(input.productId);
+    const location = await this.repository.getLocation(this.companyId, input.locationId);
+    if (!location || !location.active) {
+      throw new StockDomainError("LOCATION_NOT_FOUND", "Emplacement d'inventaire introuvable.");
+    }
+    const snapshot = await this.engine.snapshot(this.companyId, item.id, location.id);
+    const difference = input.countedQuantity - snapshot.physicalQuantity;
+    if (Math.abs(difference) <= EPSILON) {
+      return {
+        theoreticalQuantity: snapshot.physicalQuantity,
+        countedQuantity: input.countedQuantity,
+        difference: 0,
+        movement: null,
+      };
+    }
+
+    const movement = await this.engine.applyMovement({
+      companyId: this.companyId,
+      productId: item.id,
+      quantity: difference,
+      unit: item.unit,
+      movementType: "ADJUSTMENT",
+      locationFromId: difference < 0 ? location.id : null,
+      locationToId: difference > 0 ? location.id : null,
+      userId: this.userId,
+      sourceModule: "stock_inventory",
+      sourceId: item.id,
+      reason: text(input.reason) || `Inventaire ${location.name}`,
+    });
+
+    return {
+      theoreticalQuantity: snapshot.physicalQuantity,
+      countedQuantity: input.countedQuantity,
+      difference,
+      movement,
+    };
+  }
+
+  async inventoryRows(locationId: Id, search = ""): Promise<InventoryRow[]> {
+    const location = await this.repository.getLocation(this.companyId, locationId);
+    if (!location || !location.active) {
+      throw new StockDomainError("LOCATION_NOT_FOUND", "Emplacement d'inventaire introuvable.");
+    }
+    const views = await this.listItemViews(search);
+    const rows = await Promise.all(views.map(async ({ item }) => {
+      const snapshot = await this.engine.snapshot(this.companyId, item.id, location.id);
+      return {
+        item,
+        location,
+        theoreticalQuantity: snapshot.physicalQuantity,
+        reservedQuantity: snapshot.reservedQuantity,
+        availableQuantity: snapshot.availableQuantity,
+      } satisfies InventoryRow;
+    }));
+    return rows.sort((a, b) => a.item.name.localeCompare(b.item.name, "fr"));
+  }
+
+  async locationBreakdown(productId: Id): Promise<LocationStockView[]> {
+    await this.requireItem(productId);
+    const locations = await this.listLocations();
+    const rows = await Promise.all(locations.map(async location => ({
+      location,
+      snapshot: await this.engine.snapshot(this.companyId, productId, location.id),
+    })));
+    return rows
+      .filter(x => Math.abs(x.snapshot.physicalQuantity) > EPSILON || Math.abs(x.snapshot.reservedQuantity) > EPSILON)
+      .sort((a, b) => a.location.name.localeCompare(b.location.name, "fr"));
   }
 
   async listLocations(): Promise<StockLocation[]> {
@@ -280,6 +429,26 @@ export class StockApplicationService {
       outOfStockCount: views.filter(x => x.snapshot.status === "OUT_OF_STOCK").length,
       movementCount: movements.length,
     };
+  }
+
+  private async recordOutgoingMovement(
+    movementType: Extract<StockMovementType, "EXIT" | "LOSS" | "BREAKAGE">,
+    input: RecordMovementInput,
+  ): Promise<StockMovement> {
+    const item = await this.requireItem(input.productId);
+    return this.engine.applyMovement({
+      companyId: this.companyId,
+      productId: item.id,
+      quantity: input.quantity,
+      unit: item.unit,
+      movementType,
+      locationFromId: input.locationId,
+      chantierId: input.chantierId ?? null,
+      userId: this.userId,
+      sourceModule: "stock_ui",
+      sourceId: item.id,
+      reason: text(input.reason) || null,
+    });
   }
 
   private async requireItem(productId: Id): Promise<StockItem> {
