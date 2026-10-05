@@ -192,3 +192,12 @@ test("les cinq statuts fournisseur sont représentables", async () => {
   assert.ok(statuses.has("ON_ORDER"));
   assert.ok(statuses.has("UNKNOWN"));
 });
+
+
+test("une référence inconnue retourne zéro résultat sans inventer de correspondance", async () => {
+  const service = new SupplierStockService(() => NOW);
+  service.register(new IdeaBoisDemoAdapter(() => NOW));
+  service.register(new GenericSupplierDemoAdapter(() => NOW));
+  const rows = await service.search("REF-QUI-N-EXISTE-PAS");
+  assert.equal(rows.length, 0);
+});
