@@ -36,6 +36,31 @@ export type StockLocationType =
   | "chantier"
   | "autre";
 
+export type StockSecondaryDefinition =
+  | {
+      mode: "manual";
+      secondaryUnit: StockUnit;
+      quantityPerPrimaryUnit: number;
+    }
+  | {
+      mode: "length";
+      secondaryUnit: "ml";
+      lengthMm: number;
+    }
+  | {
+      mode: "area";
+      secondaryUnit: "m2";
+      lengthMm: number;
+      widthMm: number;
+    }
+  | {
+      mode: "volume";
+      secondaryUnit: "m3";
+      lengthMm: number;
+      widthMm: number;
+      thicknessMm: number;
+    };
+
 export interface StockItem {
   id: Id;
   companyId: Id;
@@ -52,6 +77,7 @@ export interface StockItem {
   barcode?: string | null;
   photoUrl?: string | null;
   notes?: string | null;
+  secondary: StockSecondaryDefinition | null;
   active: boolean;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
