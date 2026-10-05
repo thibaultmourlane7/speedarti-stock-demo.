@@ -57,6 +57,8 @@ export const STOCK_OUTBOUND_EVENTS = {
   MOVEMENT_CREATED: "stock.movement.created",
   RESERVATION_CREATED: "stock.reservation.created",
   RESERVATION_RELEASED: "stock.reservation.released",
+  RESERVATION_DRAFT_READY: "stock.reservation.draft.ready",
+  RESERVATION_RELEASE_DRAFT_READY: "stock.reservation_release.draft.ready",
   LOW_LEVEL_DETECTED: "stock.low_level.detected",
   OUT_OF_STOCK_DETECTED: "stock.out_of_stock.detected",
   INVENTORY_DIFFERENCE_DETECTED: "stock.inventory.difference_detected",
@@ -94,6 +96,43 @@ export interface StockExitDraftPayload {
   locationId: Id;
   chantierId?: Id | null;
   requestedBy?: Id | null;
+  validationRequired: true;
+}
+
+export interface ReservationRequestPayload {
+  requestId: string;
+  productId: Id;
+  quantity: number;
+  unit: StockUnit;
+  locationId?: Id | null;
+  chantierId?: Id | null;
+}
+
+export interface ReservationReleaseRequestPayload {
+  requestId: string;
+  reservationId: Id;
+}
+
+export interface ReservationDraftReadyPayload extends ReservationRequestPayload {
+  physicalQuantity: number;
+  reservedQuantity: number;
+  availableQuantity: number;
+  canReserve: boolean;
+  validationRequired: true;
+}
+
+export interface ReservationReleaseDraftReadyPayload extends ReservationReleaseRequestPayload {
+  validationRequired: true;
+}
+
+export interface PurchaseRequirementPayload {
+  requirementId: Id;
+  productId: Id;
+  quantity: number;
+  unit: StockUnit;
+  locationId?: Id | null;
+  chantierId?: Id | null;
+  reason?: string | null;
   validationRequired: true;
 }
 
