@@ -8,181 +8,95 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <div>
-        <div class="brand">SpeedArti</div>
-        <h1>Stock</h1>
-        <p class="subtitle">Simple, clair, prêt pour le chantier.</p>
+<div class="app-shell">
+  <header class="topbar">
+    <div><div class="brand">SpeedArti</div><h1>Stock</h1><p class="subtitle">Simple, clair, prêt pour le chantier.</p></div>
+    <button id="add-item-button" class="button primary">+ Ajouter un article</button>
+  </header>
+
+  <main>
+    <section class="stats-grid" aria-label="Résumé du stock">
+      <article class="stat-card"><span>Articles</span><strong id="stat-articles">0</strong></article>
+      <article class="stat-card warning"><span>Stock faible</span><strong id="stat-low">0</strong></article>
+      <article class="stat-card danger"><span>Ruptures</span><strong id="stat-out">0</strong></article>
+      <article class="stat-card"><span>Mouvements</span><strong id="stat-movements">0</strong></article>
+    </section>
+
+    <nav class="tabs" aria-label="Navigation Stock">
+      <button class="tab active" data-tab="stock">Mon stock</button>
+      <button class="tab" data-tab="inventory">Inventaire</button>
+      <button class="tab" data-tab="history">Mouvements</button>
+      <button class="tab" data-tab="locations">Emplacements</button>
+    </nav>
+
+    <section id="stock-panel" class="panel active">
+      <div class="toolbar"><label class="search"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="Rechercher un produit, une référence…"></label></div>
+      <div id="stock-list" class="stock-list"></div>
+    </section>
+
+    <section id="inventory-panel" class="panel">
+      <div class="section-heading">
+        <div><h2>Inventaire</h2><p>Comparez le stock théorique au stock réellement compté.</p></div>
+        <div class="inventory-toolbar"><select id="inventory-location-select"></select><button id="refresh-inventory-button" class="button secondary">Actualiser</button></div>
       </div>
-      <button id="add-item-button" class="button primary">+ Ajouter un article</button>
-    </header>
+      <div class="info-banner">Une correction d'inventaire crée toujours un mouvement <strong>ADJUSTMENT</strong>. La quantité n'est jamais écrasée silencieusement.</div>
+      <div id="inventory-list" class="inventory-list"></div>
+    </section>
 
-    <main>
-      <section class="stats-grid" aria-label="Résumé du stock">
-        <article class="stat-card"><span>Articles</span><strong id="stat-articles">0</strong></article>
-        <article class="stat-card warning"><span>Stock faible</span><strong id="stat-low">0</strong></article>
-        <article class="stat-card danger"><span>Ruptures</span><strong id="stat-out">0</strong></article>
-        <article class="stat-card"><span>Mouvements</span><strong id="stat-movements">0</strong></article>
-      </section>
+    <section id="history-panel" class="panel">
+      <div class="section-heading"><div><h2>Mouvements</h2><p>Entrées, sorties, transferts, pertes, casse, retours et ajustements restent tracés.</p></div></div>
+      <div id="history-list" class="history-list"></div>
+    </section>
 
-      <nav class="tabs" aria-label="Navigation Stock">
-        <button class="tab active" data-tab="stock">Mon stock</button>
-        <button class="tab" data-tab="history">Mouvements</button>
-        <button class="tab" data-tab="locations">Emplacements</button>
-      </nav>
+    <section id="locations-panel" class="panel">
+      <div class="section-heading"><div><h2>Emplacements</h2><p>Dépôt, atelier, véhicule, chantier ou autre.</p></div><button id="add-location-button" class="button secondary">+ Emplacement</button></div>
+      <div id="location-list" class="location-list"></div>
+    </section>
+  </main>
+</div>
 
-      <section id="stock-panel" class="panel active">
-        <div class="toolbar">
-          <label class="search">
-            <span aria-hidden="true">⌕</span>
-            <input id="search-input" type="search" placeholder="Rechercher un produit, une référence…">
-          </label>
-        </div>
-        <div id="stock-list" class="stock-list"></div>
-      </section>
+<dialog id="item-dialog"><form id="item-form" method="dialog" class="dialog-form">
+  <div class="dialog-head"><div><span class="eyebrow">Nouvel article</span><h2>Ajouter au stock</h2></div><button type="button" class="icon-button" data-close="item-dialog">×</button></div>
+  <label>Désignation<input name="name" required placeholder="Ex. Chevron pin 70 × 80"></label>
+  <div class="two-cols"><label>Famille<select name="family"><option value="materiaux">Matériaux</option><option value="fournitures">Fournitures</option><option value="consommables">Consommables</option><option value="outillage">Outillage</option></select></label><label>Unité<select name="unit"><option value="piece">Pièce</option><option value="ml">ml</option><option value="m2">m²</option><option value="m3">m³</option><option value="kg">kg</option><option value="litre">Litre</option><option value="sac">Sac</option><option value="boite">Boîte</option><option value="rouleau">Rouleau</option><option value="palette">Palette</option></select></label></div>
+  <div class="two-cols"><label>Quantité initiale<input name="initialQuantity" type="number" min="0" step="any" value="0"></label><label>Emplacement<select name="locationId" id="item-location-select"></select></label></div>
+  <label>Seuil minimum <span class="optional">(facultatif)</span><input name="minimumQuantity" type="number" min="0" step="any"></label>
+  <details><summary>Plus d'options</summary><div class="details-body"><label>Référence interne<input name="internalReference"></label><label>Référence fournisseur<input name="supplierReference"></label><label>Code-barres<input name="barcode"></label><label>Notes<textarea name="notes" rows="3"></textarea></label></div></details>
+  <div class="dialog-actions"><button type="button" class="button ghost" data-close="item-dialog">Annuler</button><button class="button primary">Ajouter</button></div>
+</form></dialog>
 
-      <section id="history-panel" class="panel">
-        <div class="section-heading">
-          <div>
-            <h2>Mouvements</h2>
-            <p>Chaque modification du stock reste tracée.</p>
-          </div>
-        </div>
-        <div id="history-list" class="history-list"></div>
-      </section>
+<dialog id="movement-dialog"><form id="movement-form" method="dialog" class="dialog-form">
+  <div class="dialog-head"><div><span class="eyebrow" id="movement-eyebrow">Mouvement</span><h2 id="movement-title">Entrée</h2></div><button type="button" class="icon-button" data-close="movement-dialog">×</button></div>
+  <input type="hidden" name="productId"><input type="hidden" name="mode"><div class="movement-product" id="movement-product"></div>
+  <label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required></label><label>Emplacement<select name="locationId" id="movement-location-select"></select></label>
+  <label>Chantier <span class="optional">(facultatif)</span><input name="chantierId"></label><label>Motif <span class="optional">(facultatif)</span><input name="reason"></label>
+  <div class="dialog-actions"><button type="button" class="button ghost" data-close="movement-dialog">Annuler</button><button class="button primary">Valider</button></div>
+</form></dialog>
 
-      <section id="locations-panel" class="panel">
-        <div class="section-heading">
-          <div>
-            <h2>Emplacements</h2>
-            <p>Le Dépôt principal est créé automatiquement.</p>
-          </div>
-          <button id="add-location-button" class="button secondary">+ Emplacement</button>
-        </div>
-        <div id="location-list" class="location-list"></div>
-      </section>
-    </main>
-  </div>
+<dialog id="transfer-dialog"><form id="transfer-form" method="dialog" class="dialog-form">
+  <div class="dialog-head"><div><span class="eyebrow">Transfert</span><h2>Déplacer du stock</h2></div><button type="button" class="icon-button" data-close="transfer-dialog">×</button></div>
+  <input type="hidden" name="productId"><div class="movement-product" id="transfer-product"></div><label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required></label>
+  <div class="two-cols"><label>Depuis<select name="fromLocationId" id="transfer-from-select"></select></label><label>Vers<select name="toLocationId" id="transfer-to-select"></select></label></div>
+  <label>Chantier <span class="optional">(facultatif)</span><input name="chantierId"></label><label>Motif <span class="optional">(facultatif)</span><input name="reason" placeholder="Ex. Chargement camion"></label>
+  <div class="dialog-actions"><button type="button" class="button ghost" data-close="transfer-dialog">Annuler</button><button class="button primary">Transférer</button></div>
+</form></dialog>
 
-  <dialog id="item-dialog">
-    <form id="item-form" method="dialog" class="dialog-form">
-      <div class="dialog-head">
-        <div><span class="eyebrow">Nouvel article</span><h2>Ajouter au stock</h2></div>
-        <button type="button" class="icon-button" data-close="item-dialog" aria-label="Fermer">×</button>
-      </div>
+<dialog id="incident-dialog"><form id="incident-form" method="dialog" class="dialog-form">
+  <div class="dialog-head"><div><span class="eyebrow">Autre mouvement</span><h2>Perte, casse ou retour</h2></div><button type="button" class="icon-button" data-close="incident-dialog">×</button></div>
+  <input type="hidden" name="productId"><div class="movement-product" id="incident-product"></div>
+  <label>Type<select name="kind"><option value="LOSS">Perte</option><option value="BREAKAGE">Casse</option><option value="SITE_RETURN">Retour chantier</option></select></label>
+  <label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required></label><label>Emplacement<select name="locationId" id="incident-location-select"></select></label>
+  <label>Chantier <span class="optional">(facultatif)</span><input name="chantierId"></label><label>Motif <span class="optional">(facultatif)</span><input name="reason"></label>
+  <div class="dialog-actions"><button type="button" class="button ghost" data-close="incident-dialog">Annuler</button><button class="button primary">Valider</button></div>
+</form></dialog>
 
-      <label>Désignation
-        <input name="name" required placeholder="Ex. Chevron pin 70 × 80">
-      </label>
-      <div class="two-cols">
-        <label>Famille
-          <select name="family" required>
-            <option value="materiaux">Matériaux</option>
-            <option value="fournitures">Fournitures</option>
-            <option value="consommables">Consommables</option>
-            <option value="outillage">Outillage</option>
-          </select>
-        </label>
-        <label>Unité
-          <select name="unit" required>
-            <option value="piece">Pièce</option>
-            <option value="ml">ml</option>
-            <option value="m2">m²</option>
-            <option value="m3">m³</option>
-            <option value="kg">kg</option>
-            <option value="litre">Litre</option>
-            <option value="sac">Sac</option>
-            <option value="boite">Boîte</option>
-            <option value="rouleau">Rouleau</option>
-            <option value="palette">Palette</option>
-          </select>
-        </label>
-      </div>
-      <div class="two-cols">
-        <label>Quantité initiale
-          <input name="initialQuantity" type="number" min="0" step="any" value="0">
-        </label>
-        <label>Emplacement
-          <select name="locationId" id="item-location-select"></select>
-        </label>
-      </div>
-      <label>Seuil minimum <span class="optional">(facultatif)</span>
-        <input name="minimumQuantity" type="number" min="0" step="any" placeholder="Ex. 10">
-      </label>
+<dialog id="location-dialog"><form id="location-form" method="dialog" class="dialog-form">
+  <div class="dialog-head"><div><span class="eyebrow">Emplacement</span><h2>Ajouter un emplacement</h2></div><button type="button" class="icon-button" data-close="location-dialog">×</button></div>
+  <label>Nom<input name="name" required placeholder="Ex. Camion 1"></label><label>Type<select name="type"><option value="depot">Dépôt</option><option value="atelier">Atelier</option><option value="vehicule">Véhicule</option><option value="chantier">Chantier</option><option value="autre">Autre</option></select></label>
+  <div class="dialog-actions"><button type="button" class="button ghost" data-close="location-dialog">Annuler</button><button class="button primary">Ajouter</button></div>
+</form></dialog>
 
-      <details>
-        <summary>Plus d'options</summary>
-        <div class="details-body">
-          <label>Référence interne<input name="internalReference"></label>
-          <label>Référence fournisseur<input name="supplierReference"></label>
-          <label>Code-barres<input name="barcode"></label>
-          <label>Notes<textarea name="notes" rows="3"></textarea></label>
-        </div>
-      </details>
-
-      <div class="dialog-actions">
-        <button type="button" class="button ghost" data-close="item-dialog">Annuler</button>
-        <button class="button primary" value="default">Ajouter</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="movement-dialog">
-    <form id="movement-form" method="dialog" class="dialog-form">
-      <div class="dialog-head">
-        <div><span class="eyebrow" id="movement-eyebrow">Mouvement</span><h2 id="movement-title">Entrée</h2></div>
-        <button type="button" class="icon-button" data-close="movement-dialog" aria-label="Fermer">×</button>
-      </div>
-      <input type="hidden" name="productId">
-      <input type="hidden" name="mode">
-      <div class="movement-product" id="movement-product"></div>
-      <label>Quantité
-        <input name="quantity" type="number" min="0.000001" step="any" required inputmode="decimal">
-      </label>
-      <label>Emplacement
-        <select name="locationId" id="movement-location-select" required></select>
-      </label>
-      <label>Chantier <span class="optional">(facultatif)</span>
-        <input name="chantierId" placeholder="Référence ou identifiant chantier">
-      </label>
-      <label>Motif <span class="optional">(facultatif)</span>
-        <input name="reason" placeholder="Ex. Livraison fournisseur">
-      </label>
-      <div class="dialog-actions">
-        <button type="button" class="button ghost" data-close="movement-dialog">Annuler</button>
-        <button class="button primary" value="default">Valider</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="location-dialog">
-    <form id="location-form" method="dialog" class="dialog-form">
-      <div class="dialog-head">
-        <div><span class="eyebrow">Emplacement</span><h2>Ajouter un emplacement</h2></div>
-        <button type="button" class="icon-button" data-close="location-dialog" aria-label="Fermer">×</button>
-      </div>
-      <label>Nom
-        <input name="name" required placeholder="Ex. Camion 1">
-      </label>
-      <label>Type
-        <select name="type" required>
-          <option value="depot">Dépôt</option>
-          <option value="atelier">Atelier</option>
-          <option value="vehicule">Véhicule</option>
-          <option value="chantier">Chantier</option>
-          <option value="autre">Autre</option>
-        </select>
-      </label>
-      <div class="dialog-actions">
-        <button type="button" class="button ghost" data-close="location-dialog">Annuler</button>
-        <button class="button primary" value="default">Ajouter</button>
-      </div>
-    </form>
-  </dialog>
-
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
-  <script type="module" src="./browser-dist/stock/browser/app.js"></script>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script type="module" src="./browser-dist/stock/browser/app.js"></script>
 </body>
 </html>
