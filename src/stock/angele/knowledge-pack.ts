@@ -5,7 +5,7 @@
  * une base de connaissances concurrente.
  */
 
-export const ANGEL_STOCK_KNOWLEDGE_VERSION = "stock@1.0.0" as const;
+export const ANGEL_STOCK_KNOWLEDGE_VERSION = "stock@1.1.0" as const;
 
 export const ANGEL_STOCK_INTENTS = [
   "rechercher_produit",
@@ -22,6 +22,7 @@ export const ANGEL_STOCK_INTENTS = [
   "reserver",
   "liberer_reservation",
   "rechercher_chute",
+  "rechercher_stock_fournisseur",
 ] as const;
 
 export const ANGEL_STOCK_VOCABULARY = {
@@ -90,6 +91,16 @@ export const ANGEL_STOCK_RULES: AngelStockKnowledge[] = [
     humanValidationRequired: false,
   },
   {
+    knowledgeId: "stock.supplier.search_service",
+    domain: "stock",
+    version: "1.1",
+    title: "Recherche fournisseur par service métier",
+    content: "Pour une question sur un fournisseur, Ángel interroge SupplierStockService. Ángel ne lit pas directement une table ERP ou fournisseur et restitue référence, fournisseur, disponibilité, statut et fraîcheur sans inventer de donnée manquante.",
+    source: "Architecture Stock fournisseurs — Sprint F",
+    status: "CONFIRMED",
+    humanValidationRequired: false,
+  },
+  {
     knowledgeId: "stock.offcut.geometry",
     domain: "stock",
     version: "1.0",
@@ -119,8 +130,8 @@ export const ANGEL_STOCK_EXAMPLES = [
   },
   {
     user: "Est-ce qu'Idea Bois a du chevron 80x70 ?",
-    intent: "rechercher_produit",
-    action: "future recherche fournisseur, jamais assimilée au stock artisan",
+    intent: "rechercher_stock_fournisseur",
+    action: "interroger SupplierStockService et répondre avec référence, fournisseur, disponibilité et fraîcheur ; ne jamais assimiler au stock artisan",
   },
 ] as const;
 
