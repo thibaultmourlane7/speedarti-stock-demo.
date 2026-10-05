@@ -68,3 +68,27 @@ Le résultat de référence est celui du dernier workflow GitHub Actions associ�
 - compilation navigateur des nouveaux écrans réservations / achats.
 
 Le résultat de référence est celui du dernier workflow GitHub Actions du Sprint D.
+
+
+## Conditionnements / unités secondaires
+
+- 30 chevrons de 4 m = 120 ml ;
+- 4 boîtes de 200 vis = 800 pièces ;
+- 20 plaques de 2,50 × 1,25 m = 62,5 m² ;
+- 8 sacs de 25 kg = 200 kg ;
+- sortie de 30 vis sur 4 boîtes de 200 = 770 vis restantes ;
+- unité secondaire identique à l'unité principale refusée ;
+- les mouvements saisis en unité secondaire sont convertis avant le moteur.
+
+## Sprint E
+
+- chargement du jeu de démonstration uniquement sur stock vide ;
+- démo BTP avec plusieurs conditionnements ;
+- détection stock faible ;
+- détection rupture ;
+- conservation des écarts d'inventaire corrigés dans l'onglet Alertes ;
+- scénario non-régression combinant unité secondaire, transfert, réservation, libération, sortie et besoin d'achat ;
+- compilation navigateur avec l'onglet Alertes et le chargement de démo ;
+- responsive conservé via les règles mobile/tablette du CSS.
+
+Résultat de référence actuel : **44 tests réussis sur 44**.
