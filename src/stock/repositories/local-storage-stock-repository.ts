@@ -10,7 +10,7 @@ import {
 import { StockRepository } from "./stock-repository";
 
 interface StoredState {
-  version: 2;
+  version: 3;
   items: StockItem[];
   locations: StockLocation[];
   movements: StockMovement[];
@@ -21,7 +21,7 @@ interface StoredState {
 }
 
 const EMPTY: StoredState = {
-  version: 2,
+  version: 3,
   items: [],
   locations: [],
   movements: [],
@@ -43,13 +43,17 @@ export class LocalStorageStockRepository implements StockRepository {
       if (!raw) return structuredClone(EMPTY);
       const parsed = JSON.parse(raw) as Partial<Omit<StoredState, "version">> & { version?: number };
 
-      if (parsed.version !== 1 && parsed.version !== 2) {
+      if (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== 3) {
         return structuredClone(EMPTY);
       }
 
+      const items = Array.isArray(parsed.items)
+        ? parsed.items.map(item => ({ ...item, secondary: item.secondary ?? null }))
+        : [];
+
       return {
-        version: 2,
-        items: Array.isArray(parsed.items) ? parsed.items : [],
+        version: 3,
+        items,
         locations: Array.isArray(parsed.locations) ? parsed.locations : [],
         movements: Array.isArray(parsed.movements) ? parsed.movements : [],
         reservations: Array.isArray(parsed.reservations) ? parsed.reservations : [],
