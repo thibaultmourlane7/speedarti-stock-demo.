@@ -181,7 +181,7 @@ async function renderReservationsAndNeeds(): Promise<void> {
       <article class="reservation-row" data-reservation-id="${escapeHtml(reservation.id)}">
         <div>
           <strong>${escapeHtml(item.name)}</strong>
-          <span>Chantier ${escapeHtml(reservation.chantierId ?? "non renseigné")} · ${escapeHtml(location?.name ?? "Tous emplacements")} · ${dateLabel(reservation.createdAt)}</span>
+          <span>Chantier ${escapeHtml(reservation.chantierId ?? "non renseigné")} · ${escapeHtml(location?.name ?? "Tous emplacements")}${reservation.reason ? ` · ${escapeHtml(reservation.reason)}` : ""} · ${dateLabel(reservation.createdAt)}</span>
         </div>
         <div class="reservation-qty">${quantity(reservation.quantity)} ${UNIT_LABELS[item.unit]}</div>
         <button class="button ghost small" data-release>Libérer</button>
