@@ -63,6 +63,20 @@
       <div class="toolbar">
         <label class="search"><span aria-hidden="true">⌕</span><input id="supplier-search-input" type="search" placeholder="Rechercher chez les fournisseurs…"></label>
       </div>
+
+      <section class="angel-supplier-box">
+        <div>
+          <span class="eyebrow">Ángel</span>
+          <h3>Questionner les disponibilités fournisseurs</h3>
+          <p>Ángel passe par le service métier fournisseur : aucune lecture directe des tables et aucune fusion avec votre stock.</p>
+        </div>
+        <form id="angel-supplier-form" class="angel-supplier-form">
+          <input name="query" placeholder="Ex. Idea Bois a-t-il des lames de terrasse ?" required>
+          <button class="button primary">Demander à Ángel</button>
+        </form>
+        <div id="angel-supplier-answer" class="angel-supplier-answer" hidden></div>
+      </section>
+
       <div id="supplier-draft" class="supplier-draft" hidden></div>
       <div id="supplier-list" class="supplier-list"></div>
       <p class="supplier-footnote">Les résultats sont informatifs : aucun fournisseur n'est recommandé automatiquement. Une commande ou demande de devis reste soumise à validation humaine.</p>
