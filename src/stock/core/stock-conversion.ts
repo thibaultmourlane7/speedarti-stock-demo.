@@ -11,6 +11,8 @@ export function secondaryQuantityPerPrimaryUnit(definition: StockSecondaryDefini
       return (definition.lengthMm * definition.widthMm) / 1_000_000;
     case "volume":
       return (definition.lengthMm * definition.widthMm * definition.thicknessMm) / 1_000_000_000;
+    case "equivalence":
+      return 1 / definition.primaryQuantityPerSecondaryUnit;
   }
 }
 
@@ -45,6 +47,15 @@ export function validateSecondaryDefinition(
   }
   if (definition.mode === "volume" && definition.secondaryUnit !== "m3") {
     throw new StockDomainError("INVALID_UNIT", "Un volume secondaire doit être exprimé en m³.");
+  }
+  if (
+    definition.mode === "equivalence" &&
+    (!Number.isFinite(definition.primaryQuantityPerSecondaryUnit) || definition.primaryQuantityPerSecondaryUnit <= 0)
+  ) {
+    throw new StockDomainError(
+      "INVALID_QUANTITY",
+      "L'équivalence doit définir une quantité principale strictement positive par unité.",
+    );
   }
 }
 
