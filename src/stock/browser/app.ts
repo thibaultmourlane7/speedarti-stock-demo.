@@ -36,6 +36,32 @@ const MOVEMENT_LABELS: Record<StockMovementType, string> = {
   LOSS: "Perte", BREAKAGE: "Casse", SITE_RETURN: "Retour chantier",
 };
 
+const STOCK_NAME_SUGGESTIONS = [
+  "Chevron",
+  "Lambourde",
+  "Liteau",
+  "Bastaing",
+  "Madrier",
+  "Solive",
+  "Planche",
+  "Volige",
+  "Panneau OSB",
+  "Plaque de plâtre",
+  "Vis bois",
+  "Vis placo",
+  "Cheville",
+  "Mortier",
+  "Ciment",
+  "Sable",
+  "Gravier",
+  "Tuile",
+  "Ardoise",
+  "Membrane",
+  "Isolant",
+  "Mastic",
+  "Colle",
+] as const;
+
 let search = "";
 let supplierSearch = "";
 let lastSupplierDraft: SupplierActionDraft | null = null;
@@ -138,6 +164,208 @@ function secondaryDefinitionFromForm(data: FormData): StockSecondaryDefinition |
   }
   return { mode: "volume", secondaryUnit: "m3", lengthMm, widthMm, thicknessMm };
 }
+
+function normalizeSuggestion(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("fr-FR")
+    .trim();
+}
+
+function clearItemFormErrors(form: HTMLFormElement): void {
+  form.querySelectorAll<HTMLElement>(".field-invalid").forEach(field => {
+    field.classList.remove("field-invalid");
+    field.removeAttribute("aria-invalid");
+  });
+  form.querySelectorAll<HTMLElement>(".field-error-message").forEach(message => message.remove());
+  const summary = $("#item-form-error") as HTMLDivElement;
+  summary.hidden = true;
+  summary.textContent = "";
+}
+
+function setItemFieldError(form: HTMLFormElement, name: string, message: string): void {
+  const field = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null;
+  if (!field) return;
+  field.classList.add("field-invalid");
+  field.setAttribute("aria-invalid", "true");
+  const error = document.createElement("span");
+  error.className = "field-error-message";
+  error.textContent = message;
+  field.insertAdjacentElement("afterend", error);
+}
+
+function showItemFormError(message: string): void {
+  const summary = $("#item-form-error") as HTMLDivElement;
+  summary.textContent = message;
+  summary.hidden = false;
+}
+
+function validateItemForm(form: HTMLFormElement): boolean {
+  clearItemFormErrors(form);
+  const data = new FormData(form);
+  const errors: Array<{ name: string; message: string }> = [];
+  const value = (name: string) => String(data.get(name) ?? "").trim();
+  const number = (name: string) => Number(data.get(name) ?? NaN);
+
+  if (!value("name")) errors.push({ name: "name", message: "Renseignez la désignation de l'article." });
+  if (!value("family")) errors.push({ name: "family", message: "Choisissez une famille." });
+  if (!value("unit")) errors.push({ name: "unit", message: "Choisissez l'unité de stock." });
+  if (!value("locationId")) errors.push({ name: "locationId", message: "Choisissez un emplacement." });
+
+  const initial = number("initialQuantity");
+  if (!Number.isFinite(initial) || initial < 0) {
+    errors.push({ name: "initialQuantity", message: "La quantité initiale doit être positive ou nulle." });
+  }
+
+  const minimumRaw = value("minimumQuantity");
+  if (minimumRaw && (!Number.isFinite(number("minimumQuantity")) || number("minimumQuantity") < 0)) {
+    errors.push({ name: "minimumQuantity", message: "L'alerte stock minimum doit être positive ou nulle." });
+  }
+
+  const mode = value("secondaryMode");
+  if (mode === "length" && (!Number.isFinite(number("lengthOnlyM")) || number("lengthOnlyM") <= 0)) {
+    errors.push({ name: "lengthOnlyM", message: "Renseignez la longueur d'une unité." });
+  }
+  if (mode === "area") {
+    if (!Number.isFinite(number("areaLengthM")) || number("areaLengthM") <= 0) {
+      errors.push({ name: "areaLengthM", message: "Renseignez la longueur." });
+    }
+    if (!Number.isFinite(number("areaWidthM")) || number("areaWidthM") <= 0) {
+      errors.push({ name: "areaWidthM", message: "Renseignez la largeur." });
+    }
+  }
+  if (mode === "volume") {
+    if (!Number.isFinite(number("volumeLengthM")) || number("volumeLengthM") <= 0) {
+      errors.push({ name: "volumeLengthM", message: "Renseignez la longueur." });
+    }
+    if (!Number.isFinite(number("volumeWidthM")) || number("volumeWidthM") <= 0) {
+      errors.push({ name: "volumeWidthM", message: "Renseignez la largeur." });
+    }
+    if (!Number.isFinite(number("thicknessMm")) || number("thicknessMm") <= 0) {
+      errors.push({ name: "thicknessMm", message: "Renseignez l'épaisseur." });
+    }
+  }
+  if (mode === "manual") {
+    if (!Number.isFinite(number("secondaryPerPrimary")) || number("secondaryPerPrimary") <= 0) {
+      errors.push({ name: "secondaryPerPrimary", message: "Renseignez le contenu par unité de stock." });
+    }
+    if (value("secondaryUnit") === value("unit")) {
+      errors.push({ name: "secondaryUnit", message: "L'unité équivalente doit être différente de l'unité de stock." });
+    }
+  }
+
+  for (const error of errors) setItemFieldError(form, error.name, error.message);
+  if (errors.length) {
+    showItemFormError("Certaines informations sont manquantes ou incorrectes. Les champs concernés sont surlignés en rouge.");
+    const first = form.querySelector<HTMLElement>(".field-invalid");
+    first?.focus();
+    return false;
+  }
+  return true;
+}
+
+function mapItemDomainError(form: HTMLFormElement, error: unknown): void {
+  clearItemFormErrors(form);
+  const message = explainError(error);
+  if (error instanceof StockDomainError) {
+    if (error.code === "LOCATION_NOT_FOUND") setItemFieldError(form, "locationId", message);
+    else if (error.code === "INVALID_UNIT") setItemFieldError(form, "secondaryMode", message);
+    else if (error.code === "INVALID_QUANTITY") setItemFieldError(form, "initialQuantity", message);
+    else if (error.code === "INVALID_ITEM" && "barcode" in error.details) setItemFieldError(form, "barcode", message);
+    else if (error.code === "INVALID_ITEM") setItemFieldError(form, "name", message);
+  }
+  showItemFormError(message);
+}
+
+function updateConditionPreview(form: HTMLFormElement): void {
+  const preview = $("#condition-preview") as HTMLDivElement;
+  const data = new FormData(form);
+  const mode = String(data.get("secondaryMode") ?? "none");
+  if (mode === "none") {
+    preview.hidden = true;
+    preview.textContent = "";
+    return;
+  }
+
+  const initialQuantity = Number(data.get("initialQuantity") ?? 0);
+  if (!Number.isFinite(initialQuantity) || initialQuantity < 0) {
+    preview.hidden = true;
+    return;
+  }
+
+  try {
+    const definition = secondaryDefinitionFromForm(data);
+    if (!definition) {
+      preview.hidden = true;
+      return;
+    }
+    const primaryUnit = String(data.get("unit") ?? "piece") as StockUnit;
+    const pseudoItem: StockItem = {
+      id: "preview",
+      companyId: "preview",
+      productId: null,
+      name: "Aperçu",
+      family: "materiaux",
+      internalReference: null,
+      unit: primaryUnit,
+      minimumQuantity: null,
+      mainLocationId: null,
+      secondary: definition,
+      active: true,
+      createdAt: "",
+      updatedAt: "",
+    };
+    const converted = secondaryQuantityView(pseudoItem, initialQuantity);
+    if (!converted || !Number.isFinite(converted.quantity)) {
+      preview.hidden = true;
+      return;
+    }
+    preview.hidden = false;
+    preview.innerHTML = `<strong>Équivalence calculée</strong><span>${quantity(initialQuantity)} ${unitLabel(primaryUnit, initialQuantity)} = ${quantity(converted.quantity)} ${unitLabel(converted.unit, converted.quantity)}</span>`;
+  } catch {
+    preview.hidden = true;
+  }
+}
+
+async function renderNameSuggestions(raw: string): Promise<void> {
+  const box = $("#item-name-suggestions") as HTMLDivElement;
+  const needle = normalizeSuggestion(raw);
+  if (needle.length < 2) {
+    box.hidden = true;
+    box.innerHTML = "";
+    return;
+  }
+
+  const existing = (await service.listItemViews()).map(view => view.item.name);
+  const all = [...new Set([...STOCK_NAME_SUGGESTIONS, ...existing])];
+  const matches = all
+    .filter(name => normalizeSuggestion(name).includes(needle))
+    .sort((a, b) => {
+      const aa = normalizeSuggestion(a).startsWith(needle) ? 0 : 1;
+      const bb = normalizeSuggestion(b).startsWith(needle) ? 0 : 1;
+      return aa - bb || a.localeCompare(b, "fr");
+    })
+    .slice(0, 6);
+
+  if (!matches.length) {
+    box.hidden = true;
+    box.innerHTML = "";
+    return;
+  }
+
+  box.innerHTML = matches.map(name => `<button type="button" data-name-suggestion="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("");
+  box.hidden = false;
+  box.querySelectorAll<HTMLButtonElement>("[data-name-suggestion]").forEach(button => {
+    button.addEventListener("click", () => {
+      const input = $("#item-name-input") as HTMLInputElement;
+      input.value = button.dataset.nameSuggestion ?? "";
+      box.hidden = true;
+      input.focus();
+    });
+  });
+}
+
 function dateLabel(value: string): string {
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
