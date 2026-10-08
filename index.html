@@ -194,32 +194,40 @@
   </main>
 </div>
 
-<dialog id="item-dialog"><form id="item-form" method="dialog" class="dialog-form">
+<dialog id="item-dialog"><form id="item-form" method="dialog" class="dialog-form" novalidate>
   <div class="dialog-head"><div><span class="eyebrow">Nouvel article</span><h2>Ajouter au stock</h2></div><button type="button" class="icon-button" data-close="item-dialog">×</button></div>
-  <label>Désignation<input name="name" required placeholder="Ex. Chevron pin 70 × 80"></label>
-  <div class="two-cols"><label>Famille<select name="family"><option value="materiaux">Matériaux</option><option value="fournitures">Fournitures</option><option value="consommables">Consommables</option><option value="outillage">Outillage</option></select></label><label>Unité<select name="unit"><option value="piece">Pièce</option><option value="ml">ml</option><option value="m2">m²</option><option value="m3">m³</option><option value="kg">kg</option><option value="litre">Litre</option><option value="sac">Sac</option><option value="boite">Boîte</option><option value="rouleau">Rouleau</option><option value="palette">Palette</option></select></label></div>
-  <div class="two-cols"><label>Quantité initiale<input name="initialQuantity" type="number" min="0" step="any" value="0"></label><label>Emplacement<select name="locationId" id="item-location-select"></select></label></div>
-  <label>Seuil minimum <span class="optional">(facultatif)</span><input name="minimumQuantity" type="number" min="0" step="any"></label>
+  <div id="item-form-error" class="form-error-summary" hidden></div>
+  <label class="autocomplete-field">Désignation
+    <input id="item-name-input" name="name" required autocomplete="off" placeholder="Ex. Chevron">
+    <div id="item-name-suggestions" class="name-suggestions" hidden></div>
+  </label>
+  <label>Section / dimensions <span class="optional">(facultatif)</span><input name="section" placeholder="Ex. 70 × 80 mm"></label>
+  <div class="two-cols"><label>Famille<select name="family"><option value="materiaux">Matériaux</option><option value="fournitures">Fournitures</option><option value="consommables">Consommables</option><option value="outillage">Outillage</option></select></label><label>Unité de stock<select name="unit"><option value="piece">Pièce</option><option value="ml">ml</option><option value="m2">m²</option><option value="m3">m³</option><option value="kg">kg</option><option value="litre">Litre</option><option value="sac">Sac</option><option value="boite">Boîte</option><option value="rouleau">Rouleau</option><option value="palette">Palette</option></select></label></div>
+  <div class="two-cols"><label>Quantité initiale<input name="initialQuantity" type="number" min="0" step="any" value="0"></label><label>Emplacement<select name="locationId" id="item-location-select" required></select></label></div>
+  <label>Alerte stock minimum <span class="optional">(facultatif)</span>
+    <input name="minimumQuantity" type="number" min="0" step="any" placeholder="Ex. 5">
+    <span class="field-help">Une alerte apparaît lorsque le stock disponible atteint ou passe sous cette quantité.</span>
+  </label>
   <details class="condition-details">
-    <summary>Conditionnement / dimensions</summary>
+    <summary>Conditionnement / équivalence <span class="optional">(facultatif)</span></summary>
     <div class="details-body">
-      <div class="info-banner compact">Ajoutez une unité secondaire calculée sans créer un deuxième stock. Ex. 30 chevrons de 4 m = 120 ml ; 4 boîtes de 200 vis = 800 vis.</div>
-      <label>Calcul secondaire
+      <div class="info-banner compact">Une seule quantité reste la source de vérité. L'équivalent est calculé automatiquement dans les deux sens. Ex. 30 chevrons de 4 m = 120 ml ; 2 ml avec 1 chevron = 4 ml = 0,5 chevron.</div>
+      <label>Type d'équivalence
         <select name="secondaryMode" id="secondary-mode">
           <option value="none">Aucun</option>
-          <option value="length">Longueur par unité</option>
-          <option value="area">Surface par unité</option>
-          <option value="volume">Volume par unité</option>
+          <option value="length">Longueur d'une unité</option>
+          <option value="area">Surface d'une unité</option>
+          <option value="volume">Volume d'une unité</option>
           <option value="manual">Contenu par unité / emballage</option>
         </select>
       </label>
       <div data-secondary-group="length" hidden>
         <label>Longueur d'une unité (m)<input name="lengthOnlyM" type="number" min="0.000001" step="any" placeholder="Ex. 4"></label>
-        <p class="field-help">Ex. 30 chevrons × 4 m = 120 ml.</p>
+        <p class="field-help">Si le stock est en pièces : 30 chevrons × 4 m = 120 ml. Si le stock est en ml : 2 ml ÷ 4 m = 0,5 chevron.</p>
       </div>
       <div data-secondary-group="area" hidden>
         <div class="two-cols"><label>Longueur (m)<input name="areaLengthM" type="number" min="0.000001" step="any" placeholder="Ex. 2.5"></label><label>Largeur (m)<input name="areaWidthM" type="number" min="0.000001" step="any" placeholder="Ex. 1.25"></label></div>
-        <p class="field-help">Ex. 20 plaques 2,50 × 1,25 m = 62,5 m².</p>
+        <p class="field-help">Ex. une plaque 2,50 × 1,25 m = 3,125 m². La conversion fonctionne aussi si votre stock est saisi directement en m².</p>
       </div>
       <div data-secondary-group="volume" hidden>
         <div class="two-cols"><label>Longueur (m)<input name="volumeLengthM" type="number" min="0.000001" step="any"></label><label>Largeur (m)<input name="volumeWidthM" type="number" min="0.000001" step="any"></label></div>
@@ -227,8 +235,8 @@
       </div>
       <div data-secondary-group="manual" hidden>
         <div class="two-cols">
-          <label>Contenu par unité principale<input name="secondaryPerPrimary" type="number" min="0.000001" step="any" placeholder="Ex. 200"></label>
-          <label>Unité secondaire
+          <label>Contenu par unité de stock<input name="secondaryPerPrimary" type="number" min="0.000001" step="any" placeholder="Ex. 200"></label>
+          <label>Unité équivalente
             <select name="secondaryUnit">
               <option value="piece">Pièce</option><option value="ml">ml</option><option value="m2">m²</option><option value="m3">m³</option><option value="kg">kg</option><option value="litre">Litre</option>
             </select>
@@ -236,6 +244,7 @@
         </div>
         <p class="field-help">Ex. 1 boîte = 200 vis ; 1 sac = 25 kg ; 1 rouleau = 25 ml.</p>
       </div>
+      <div id="condition-preview" class="condition-preview" hidden></div>
     </div>
   </details>
   <details><summary>Plus d'options</summary><div class="details-body"><label>Référence interne<input name="internalReference"></label><label>Référence fournisseur<input name="supplierReference"></label><label>Code-barres<input name="barcode"></label><label>Notes<textarea name="notes" rows="3"></textarea></label></div></details>
