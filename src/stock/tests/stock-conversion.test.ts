@@ -119,3 +119,62 @@ test("une unité secondaire identique à l'unité principale est refusée", asyn
     (error: unknown) => error instanceof StockDomainError && error.code === "INVALID_UNIT",
   );
 });
+
+
+test("2 ml de chevron de 4 m correspondent à 0,5 unité", () => {
+  const item = baseItem({
+    unit: "ml",
+    secondary: {
+      mode: "equivalence",
+      secondaryUnit: "piece",
+      primaryQuantityPerSecondaryUnit: 4,
+    },
+  });
+  const view = secondaryQuantityView(item, 2);
+  assert.equal(view?.quantity, 0.5);
+  assert.equal(view?.unit, "piece");
+  assert.equal(view?.quantityPerPrimaryUnit, 0.25);
+});
+
+test("un article stocké en ml accepte l'équivalence 1 pièce = 4 ml", async () => {
+  const repo = new InMemoryStockRepository();
+  let n = 0;
+  const service = new StockApplicationService(
+    repo,
+    "company-inverse",
+    "user-inverse",
+    () => "2026-10-08T14:30:00Z",
+    () => `inverse-${++n}`,
+  );
+  const depot = await service.initialize();
+  const item = await service.createItem({
+    name: "Chevron",
+    section: "70 × 80 mm",
+    family: "materiaux",
+    unit: "ml",
+    initialQuantity: 2,
+    locationId: depot.id,
+    secondary: {
+      mode: "equivalence",
+      secondaryUnit: "piece",
+      primaryQuantityPerSecondaryUnit: 4,
+    },
+  });
+
+  const stock = (await service.listItemViews())[0]!;
+  assert.equal(stock.snapshot.physicalQuantity, 2);
+  assert.equal(stock.item.section, "70 × 80 mm");
+  assert.equal(secondaryQuantityView(stock.item, stock.snapshot.physicalQuantity)?.quantity, 0.5);
+});
+
+test("6,25 m² de panneaux de 3,125 m² correspondent à 2 unités", () => {
+  const item = baseItem({
+    unit: "m2",
+    secondary: {
+      mode: "equivalence",
+      secondaryUnit: "piece",
+      primaryQuantityPerSecondaryUnit: 3.125,
+    },
+  });
+  assert.equal(secondaryQuantityView(item, 6.25)?.quantity, 2);
+});
