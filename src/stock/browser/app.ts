@@ -87,6 +87,7 @@ function setUnitOptions(select: HTMLSelectElement, item: StockItem): void {
 
 function secondaryDefinitionFromForm(data: FormData): StockSecondaryDefinition | null {
   const mode = String(data.get("secondaryMode") ?? "none");
+  const primaryUnit = String(data.get("unit") ?? "piece") as StockUnit;
   if (mode === "none") return null;
 
   if (mode === "manual") {
@@ -99,17 +100,42 @@ function secondaryDefinitionFromForm(data: FormData): StockSecondaryDefinition |
 
   const lengthM = Number(data.get(mode === "length" ? "lengthOnlyM" : mode === "area" ? "areaLengthM" : "volumeLengthM") ?? 0);
   const lengthMm = lengthM * 1000;
+
   if (mode === "length") {
+    if (primaryUnit === "ml") {
+      return {
+        mode: "equivalence",
+        secondaryUnit: "piece",
+        primaryQuantityPerSecondaryUnit: lengthM,
+      };
+    }
     return { mode: "length", secondaryUnit: "ml", lengthMm };
   }
 
   const widthM = Number(data.get(mode === "area" ? "areaWidthM" : "volumeWidthM") ?? 0);
   const widthMm = widthM * 1000;
+
   if (mode === "area") {
+    const areaM2 = lengthM * widthM;
+    if (primaryUnit === "m2") {
+      return {
+        mode: "equivalence",
+        secondaryUnit: "piece",
+        primaryQuantityPerSecondaryUnit: areaM2,
+      };
+    }
     return { mode: "area", secondaryUnit: "m2", lengthMm, widthMm };
   }
 
   const thicknessMm = Number(data.get("thicknessMm") ?? 0);
+  const volumeM3 = lengthM * widthM * (thicknessMm / 1000);
+  if (primaryUnit === "m3") {
+    return {
+      mode: "equivalence",
+      secondaryUnit: "piece",
+      primaryQuantityPerSecondaryUnit: volumeM3,
+    };
+  }
   return { mode: "volume", secondaryUnit: "m3", lengthMm, widthMm, thicknessMm };
 }
 function dateLabel(value: string): string {
