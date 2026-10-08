@@ -1095,17 +1095,50 @@ function wireTabs(): void {
 }
 function wireDialogs(): void {
   document.querySelectorAll<HTMLElement>("[data-close]").forEach(button => button.addEventListener("click", () => closeDialog(button.dataset.close ?? "")));
-  $("#add-item-button").addEventListener("click", () => openDialog("item-dialog"));
+  $("#add-item-button").addEventListener("click", () => {
+    const form = $("#item-form") as HTMLFormElement;
+    clearItemFormErrors(form);
+    ($("#item-name-suggestions") as HTMLDivElement).hidden = true;
+    updateConditionPreview(form);
+    openDialog("item-dialog");
+  });
   $("#add-location-button").addEventListener("click", () => openDialog("location-dialog"));
 }
 
 function wireForms(): void {
   const itemForm = $("#item-form") as HTMLFormElement;
-  itemForm.addEventListener("submit", async event => { event.preventDefault(); const data = new FormData(itemForm); try {
-    const thresholdRaw = String(data.get("minimumQuantity") ?? "").trim();
-    await service.createItem({ name:String(data.get("name")??""), family:String(data.get("family")??""), unit:String(data.get("unit")??"piece") as StockUnit, initialQuantity:Number(data.get("initialQuantity")??0), locationId:String(data.get("locationId")??""), minimumQuantity:thresholdRaw?Number(thresholdRaw):null, internalReference:String(data.get("internalReference")??""), supplierReference:String(data.get("supplierReference")??""), barcode:String(data.get("barcode")??""), notes:String(data.get("notes")??""), secondary:secondaryDefinitionFromForm(data) });
-    itemForm.reset(); closeDialog("item-dialog"); showToast("Article ajouté au stock."); await refresh();
-  } catch(error){showToast(explainError(error),true);} });
+  itemForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!validateItemForm(itemForm)) return;
+    const data = new FormData(itemForm);
+    try {
+      const thresholdRaw = String(data.get("minimumQuantity") ?? "").trim();
+      await service.createItem({
+        name: String(data.get("name") ?? ""),
+        section: String(data.get("section") ?? "").trim() || null,
+        family: String(data.get("family") ?? ""),
+        unit: String(data.get("unit") ?? "piece") as StockUnit,
+        initialQuantity: Number(data.get("initialQuantity") ?? 0),
+        locationId: String(data.get("locationId") ?? ""),
+        minimumQuantity: thresholdRaw ? Number(thresholdRaw) : null,
+        internalReference: String(data.get("internalReference") ?? ""),
+        supplierReference: String(data.get("supplierReference") ?? ""),
+        barcode: String(data.get("barcode") ?? ""),
+        notes: String(data.get("notes") ?? ""),
+        secondary: secondaryDefinitionFromForm(data),
+      });
+      itemForm.reset();
+      clearItemFormErrors(itemForm);
+      ($("#item-name-suggestions") as HTMLDivElement).hidden = true;
+      ($("#secondary-mode") as HTMLSelectElement).dispatchEvent(new Event("change"));
+      updateConditionPreview(itemForm);
+      closeDialog("item-dialog");
+      showToast("Article ajouté au stock.");
+      await refresh();
+    } catch (error) {
+      mapItemDomainError(itemForm, error);
+    }
+  });
 
   const movementForm = $("#movement-form") as HTMLFormElement;
   movementForm.addEventListener("submit", async event => { event.preventDefault(); const data=new FormData(movementForm); const mode=String(data.get("mode")??""); try {
@@ -1178,6 +1211,7 @@ function wireForms(): void {
 }
 
 function wireSecondaryFields(): void {
+  const form = $("#item-form") as HTMLFormElement;
   const mode = $("#secondary-mode") as HTMLSelectElement;
   const groups = Array.from(document.querySelectorAll<HTMLElement>("[data-secondary-group]"));
   const refreshFields = () => {
@@ -1185,9 +1219,34 @@ function wireSecondaryFields(): void {
     groups.forEach(group => {
       group.hidden = group.dataset.secondaryGroup !== selected;
     });
+    updateConditionPreview(form);
   };
   mode.addEventListener("change", refreshFields);
+  form.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input, select").forEach(field => {
+    field.addEventListener("input", () => updateConditionPreview(form));
+    field.addEventListener("change", () => updateConditionPreview(form));
+  });
   refreshFields();
+}
+
+function wireItemNameAutocomplete(): void {
+  const input = $("#item-name-input") as HTMLInputElement;
+  const suggestions = $("#item-name-suggestions") as HTMLDivElement;
+  input.addEventListener("input", () => {
+    void renderNameSuggestions(input.value);
+    if (input.value.trim()) {
+      input.classList.remove("field-invalid");
+      input.removeAttribute("aria-invalid");
+      input.parentElement?.querySelector(".field-error-message")?.remove();
+    }
+  });
+  input.addEventListener("focus", () => {
+    if (input.value.trim().length >= 2) void renderNameSuggestions(input.value);
+  });
+  document.addEventListener("click", event => {
+    const target = event.target as Node;
+    if (!input.contains(target) && !suggestions.contains(target)) suggestions.hidden = true;
+  });
 }
 
 function wireDemoData(): void {
@@ -1335,5 +1394,5 @@ function wireInventory(): void {
   $("#refresh-inventory-button").addEventListener("click",()=>{void renderInventory();});
 }
 
-async function main():Promise<void>{wireTabs();wireDialogs();wireForms();wireSecondaryFields();wireDemoData();wireAngelSupplier();wireSupplierSearch();wireExpert();wireSearch();wireInventory();await service.initialize();await refresh();}
+async function main():Promise<void>{wireTabs();wireDialogs();wireForms();wireSecondaryFields();wireItemNameAutocomplete();wireDemoData();wireAngelSupplier();wireSupplierSearch();wireExpert();wireSearch();wireInventory();await service.initialize();await refresh();}
 main().catch(error=>{showToast(explainError(error),true);console.error(error);});
