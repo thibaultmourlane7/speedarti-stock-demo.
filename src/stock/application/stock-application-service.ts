@@ -38,6 +38,7 @@ export interface CreateItemInput {
   supplierReference?: string | null;
   barcode?: string | null;
   notes?: string | null;
+  section?: string | null;
   secondary?: StockSecondaryDefinition | null;
 }
 
@@ -290,6 +291,7 @@ export class StockApplicationService {
       supplierReference: text(input.supplierReference) || null,
       barcode,
       notes: text(input.notes) || null,
+      section: text(input.section) || null,
       secondary: input.secondary ?? null,
       active: true,
       createdAt: at,
