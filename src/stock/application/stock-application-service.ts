@@ -647,6 +647,7 @@ export class StockApplicationService {
           item.name,
           item.internalReference,
           item.family,
+          item.section,
           item.supplierReference,
           item.barcode,
         ].filter(Boolean).join(" ")).includes(needle))
