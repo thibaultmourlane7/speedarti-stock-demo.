@@ -136,3 +136,18 @@ Résultat de référence actuel : **44 tests réussis sur 44**.
 - compilation navigateur du scan caméra `BarcodeDetector`.
 
 Résultat de référence avant documentation : **68 tests réussis sur 68**.
+
+
+## Correctif G.1 — retour utilisateur formulaire Stock
+
+- équivalence inverse : 2 ml avec 1 unité = 4 ml → 0,5 unité ;
+- équivalence inverse surface : 6,25 m² avec 3,125 m²/unité → 2 unités ;
+- section / dimensions stockée séparément ;
+- recherche Stock incluant la section ;
+- autocomplétion de la désignation préparée dans l'interface ;
+- libellé « Alerte stock minimum » ;
+- aperçu d'équivalence avant création ;
+- validation du formulaire Article avec champs manquants surlignés en rouge ;
+- erreurs de création affichées dans la boîte de dialogue plutôt que seulement dans le toast.
+
+Résultat automatisé : **71 tests réussis sur 71**.
