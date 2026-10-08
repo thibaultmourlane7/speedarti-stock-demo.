@@ -59,6 +59,11 @@ export type StockSecondaryDefinition =
       lengthMm: number;
       widthMm: number;
       thicknessMm: number;
+    }
+  | {
+      mode: "equivalence";
+      secondaryUnit: StockUnit;
+      primaryQuantityPerSecondaryUnit: number;
     };
 
 export interface StockItem {
@@ -77,6 +82,7 @@ export interface StockItem {
   barcode?: string | null;
   photoUrl?: string | null;
   notes?: string | null;
+  section?: string | null;
   secondary?: StockSecondaryDefinition | null;
   active: boolean;
   createdAt: ISODateTime;
