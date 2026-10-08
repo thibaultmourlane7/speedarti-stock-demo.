@@ -481,9 +481,10 @@ async function renderStock(): Promise<void> {
           <div class="stock-title"><h3>${escapeHtml(item.name)}</h3>${statusBadge(snapshot.status)}</div>
           <div class="stock-meta">
             <span>${escapeHtml(item.family)}</span>
+            ${item.section ? `<span>Section : ${escapeHtml(item.section)}</span>` : ""}
             ${item.internalReference ? `<span>Réf. ${escapeHtml(item.internalReference)}</span>` : ""}
             <span>Principal : ${escapeHtml(mainLocation?.name ?? "Sans emplacement")}</span>
-            ${item.minimumQuantity !== null ? `<span>Seuil : ${quantity(item.minimumQuantity)} ${UNIT_LABELS[item.unit]}</span>` : ""}
+            ${item.minimumQuantity !== null ? `<span>Alerte mini : ${quantity(item.minimumQuantity)} ${UNIT_LABELS[item.unit]}</span>` : ""}
           </div>
           ${locations}
         </div>
@@ -1075,8 +1076,8 @@ async function openReplenish(productId: string): Promise<void> {
   }
   setUnitOptions(form.elements.namedItem("unit") as HTMLSelectElement, view.item);
   const threshold = view.item.minimumQuantity === null
-    ? "Aucun seuil minimum défini."
-    : `Seuil minimum : ${quantity(view.item.minimumQuantity)} ${UNIT_LABELS[view.item.unit]}.`;
+    ? "Aucune alerte stock minimum définie."
+    : `Alerte stock minimum : ${quantity(view.item.minimumQuantity)} ${UNIT_LABELS[view.item.unit]}.`;
   $("#replenish-product").textContent = `${view.item.name} — ${quantity(view.snapshot.availableQuantity)} ${UNIT_LABELS[view.item.unit]} disponibles. ${threshold}`;
   ($("#replenish-dialog") as HTMLDialogElement).showModal();
 }
