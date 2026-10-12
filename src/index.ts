@@ -17,3 +17,5 @@ export * from "./stock/suppliers/demo-adapters";
 export * from "./stock/angele/supplier-search";
 
 export * from "./stock/expert/scan-service";
+
+export * from "./stock/integrations/reference-directory";
