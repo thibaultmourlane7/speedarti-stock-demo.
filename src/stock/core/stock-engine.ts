@@ -112,6 +112,7 @@ export interface MovementCommand {
   locationFromId?: Id | null;
   locationToId?: Id | null;
   chantierId?: Id | null;
+  crewId?: Id | null;
   userId?: Id | null;
   sourceModule: string;
   sourceId?: string | null;
@@ -205,6 +206,7 @@ export class StockEngine {
       locationFromId: command.locationFromId ?? null,
       locationToId: command.locationToId ?? null,
       chantierId: command.chantierId ?? null,
+      crewId: command.crewId ?? null,
       userId: command.userId ?? null,
       sourceModule: command.sourceModule,
       sourceId: command.sourceId ?? null,
