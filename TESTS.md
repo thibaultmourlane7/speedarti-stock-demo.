@@ -174,3 +174,6 @@ Résultat automatisé : **71 tests réussis sur 71**.
 - interface Inventaire déplacée dans Mon stock ;
 - connecteur Parc matériel préparé dans la démo Équipe & Planning ;
 - base existante Ángel enrichie en `stock@1.2.0`.
+
+
+Résultat automatisé final Sprint G.2 : **80 tests réussis sur 80**.
