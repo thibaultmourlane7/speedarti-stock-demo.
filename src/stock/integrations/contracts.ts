@@ -10,6 +10,7 @@ export const SPEEDARTI_MODULES = {
   COMMANDES: "commandes",
   FACTURES_FOURNISSEURS: "factures_fournisseurs",
   EQUIPE_PLANNING: "equipe_planning",
+  PARC_MATERIEL: "parc_materiel",
   NOTIFICATIONS: "notifications",
   ANGEL: "angel",
   COMPTABILITE: "comptabilite",
@@ -39,6 +40,14 @@ export interface IntegrationEnvelope<TPayload extends object = Record<string, un
 export const STOCK_INBOUND_EVENTS = {
   TEAM_PLANNING_MATERIAL_AVAILABILITY_REQUESTED: "team_planning.material.availability.requested",
   TEAM_PLANNING_STOCK_EXIT_DRAFT_REQUESTED: "team_planning.stock_exit.draft.requested",
+  TEAM_PLANNING_CREW_SNAPSHOT: "team_planning.crew.snapshot",
+  TEAM_PLANNING_CREW_UPDATED: "team_planning.crew.updated",
+  PARC_MATERIEL_VEHICLE_CREATED: "parc_materiel.vehicle.created",
+  PARC_MATERIEL_VEHICLE_UPDATED: "parc_materiel.vehicle.updated",
+  PARC_MATERIEL_VEHICLE_DISABLED: "parc_materiel.vehicle.disabled",
+  CHANTIER_CREATED: "chantier.created",
+  CHANTIER_UPDATED: "chantier.updated",
+  CHANTIER_CLOSED: "chantier.closed",
   CHIFFRAGE_AVAILABILITY_REQUESTED: "chiffrage.stock.availability.requested",
   CHIFFRAGE_RESERVATION_REQUESTED: "chiffrage.stock.reservation.requested",
   CHIFFRAGE_RESERVATION_RELEASE_REQUESTED: "chiffrage.stock.reservation.release.requested",
@@ -66,7 +75,30 @@ export const STOCK_OUTBOUND_EVENTS = {
   OFFCUT_AVAILABLE: "stock.offcut.available",
   OFFCUT_CONSUMED: "stock.offcut.consumed",
   PILOTAGE_KPI_UPDATED: "stock.pilotage.kpi.updated",
+  VEHICLE_STOCK_UPDATED: "stock.vehicle.updated",
+  INVENTORY_SESSION_CREATED: "stock.inventory.session.created",
+  INVENTORY_SESSION_COMPLETED: "stock.inventory.session.completed",
+  INVENTORY_SESSION_VALIDATED: "stock.inventory.session.validated",
 } as const;
+
+export interface VehicleSnapshotPayload {
+  vehicleId: Id;
+  name: string;
+  registration?: string | null;
+  active: boolean;
+}
+
+export interface CrewSnapshotPayload {
+  crewId: Id;
+  name: string;
+  active: boolean;
+}
+
+export interface ChantierSnapshotPayload {
+  chantierId: Id;
+  name: string;
+  active: boolean;
+}
 
 export interface AvailabilityRequestPayload {
   requestId: string;
@@ -159,7 +191,11 @@ export const CONNECTOR_CATALOG = {
   },
   equipe_planning: {
     direction: "bidirectionnel",
-    sourceOfTruth: "Stock SpeedArti pour disponibilité ; Équipe & Planning pour demande terrain et affectation.",
+    sourceOfTruth: "Stock SpeedArti pour disponibilité ; Équipe & Planning pour équipes, demandes terrain et affectations.",
+  },
+  parc_materiel: {
+    direction: "entrant",
+    sourceOfTruth: "Parc matériel / Paramètres SpeedArti pour l'identité, le nom, l'immatriculation et l'état actif des véhicules. Stock ne conserve que le lien vehicleId et les quantités.",
   },
   notifications: {
     direction: "sortant",
