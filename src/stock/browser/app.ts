@@ -1448,17 +1448,15 @@ function wireExpert(): void {
   });
   $("#expert-camera-stop").addEventListener("click", () => stopExpertCamera());
 
-  const createVehicleForm = $("#vehicle-create-form") as HTMLFormElement;
-  createVehicleForm.addEventListener("submit", async event => {
-    event.preventDefault();
-    const data = new FormData(createVehicleForm);
+  $("#sync-demo-vehicles-button").addEventListener("click", async () => {
     try {
-      await service.createVehicle({
-        name: String(data.get("name") ?? ""),
-        registration: String(data.get("registration") ?? "").trim() || null,
+      await service.syncVehicleFromParcMateriel({
+        vehicleId: "parc-demo-camion-couvreur",
+        name: "Camion couvreur — démo Parc matériel",
+        registration: "DEMO-G2-31",
+        active: true,
       });
-      createVehicleForm.reset();
-      showToast("Véhicule ajouté au Stock.");
+      showToast("Véhicule fictif reçu depuis le connecteur Parc matériel.");
       await refresh();
     } catch (error) {
       showToast(explainError(error), true);
@@ -1477,45 +1475,23 @@ function wireExpert(): void {
     try {
       const depot = (await service.listLocations()).find(location => location.name === "Dépôt principal");
       if (!depot) throw new StockDomainError("LOCATION_NOT_FOUND", "Dépôt principal introuvable.");
-      const vehicleId = String(data.get("vehicleId") ?? "");
-      if (!vehicleId) throw new StockDomainError("LOCATION_NOT_FOUND", "Créez d'abord un véhicule.");
+      const vehicleLocationId = String(data.get("vehicleId") ?? "");
+      if (!vehicleLocationId) {
+        throw new StockDomainError(
+          "LOCATION_NOT_FOUND",
+          "Aucun véhicule actif n'a été reçu du Parc matériel.",
+        );
+      }
       await service.transferStock({
         productId: String(data.get("productId") ?? ""),
         quantity: Number(data.get("quantity") ?? 0),
         unit: String(data.get("unit") ?? "piece") as StockUnit,
         fromLocationId: depot.id,
-        toLocationId: vehicleId,
-        reason: "Chargement véhicule",
+        toLocationId: vehicleLocationId,
+        reason: "Chargement véhicule depuis Parc matériel",
       });
-      showToast("Véhicule chargé depuis le dépôt.");
+      showToast("Chargement validé : dépôt déduit et véhicule alimenté.");
       await refresh();
-    } catch (error) {
-      showToast(explainError(error), true);
-    }
-  });
-
-  const qrForm = $("#expert-qr-form") as HTMLFormElement;
-  const qrProduct = $("#expert-qr-product") as HTMLSelectElement;
-  qrProduct.addEventListener("change", async () => {
-    const view = (await service.listItemViews()).find(row => row.item.id === qrProduct.value);
-    if (view) setUnitOptions($("#expert-qr-unit") as HTMLSelectElement, view.item);
-  });
-  qrForm.addEventListener("submit", event => {
-    event.preventDefault();
-    const data = new FormData(qrForm);
-    try {
-      const payload = expertScanService.createQrPayload({
-        productId: String(data.get("productId") ?? ""),
-        action: String(data.get("action") ?? "ENTRY") as "ENTRY" | "EXIT" | "TRANSFER" | "SITE_RETURN",
-        quantity: Number(data.get("quantity") ?? 0),
-        unit: String(data.get("unit") ?? "piece") as StockUnit,
-        locationFromId: String(data.get("fromLocationId") ?? "") || null,
-        locationToId: String(data.get("toLocationId") ?? "") || null,
-        chantierId: String(data.get("chantierId") ?? "").trim() || null,
-      });
-      const output = $("#expert-qr-output") as HTMLDivElement;
-      output.hidden = false;
-      output.innerHTML = `<strong>Contenu du QR SpeedArti</strong><code>${escapeHtml(payload)}</code><small>Ce payload prépare seulement un brouillon au scan. Une confirmation humaine reste obligatoire.</small>`;
     } catch (error) {
       showToast(explainError(error), true);
     }
