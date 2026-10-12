@@ -726,7 +726,7 @@ async function renderVehicles(): Promise<void> {
   const vehicles = await service.listVehicleStocks();
   const list = $("#vehicle-stock-list") as HTMLDivElement;
   if (!vehicles.length) {
-    list.innerHTML = `<div class="empty"><strong>Aucun véhicule</strong><span>Créez un véhicule pour gérer son stock séparément.</span></div>`;
+    list.innerHTML = `<div class="empty"><strong>Aucun véhicule reçu</strong><span>Synchronisez le Parc matériel SpeedArti pour afficher les véhicules actifs.</span></div>`;
     return;
   }
 
