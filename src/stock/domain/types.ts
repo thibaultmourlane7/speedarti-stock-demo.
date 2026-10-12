@@ -120,6 +120,7 @@ export interface StockMovement {
   locationFromId: Id | null;
   locationToId: Id | null;
   chantierId: Id | null;
+  crewId?: Id | null;
   userId: Id | null;
   sourceModule: string;
   sourceId: string | null;
@@ -173,18 +174,22 @@ export interface InventoryCount {
   productId: Id;
   locationId: Id;
   theoreticalQuantity: number;
-  countedQuantity: number;
+  countedQuantity: number | null;
   unit: StockUnit;
+  countedAt?: ISODateTime | null;
 }
 
 export interface InventorySession {
   id: Id;
   companyId: Id;
-  status: "OPEN" | "COMPLETED";
+  locationId: Id;
+  locationName: string;
+  status: "OPEN" | "COMPLETED" | "VALIDATED";
   counts: InventoryCount[];
   createdBy: Id | null;
   createdAt: ISODateTime;
   completedAt: ISODateTime | null;
+  validatedAt: ISODateTime | null;
 }
 
 export type PurchaseRequirementStatus = "DRAFT" | "HANDED_TO_ORDERS";
