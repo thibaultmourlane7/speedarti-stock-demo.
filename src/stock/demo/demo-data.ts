@@ -17,7 +17,12 @@ export async function loadBtpDemoData(service: StockApplicationService): Promise
   }
 
   const depot = await service.initialize();
-  const camion = await service.createVehicle({ name: "Camion 1", registration: "DEMO-AA-123" });
+  const camion = await service.syncVehicleFromParcMateriel({
+    vehicleId: "parc-demo-camion-1",
+    name: "Camion 1",
+    registration: "DEMO-AA-123",
+    active: true,
+  });
 
   const chevron = await service.createItem({
     name: "Chevron pin 70 × 80 — 4 m",
