@@ -151,3 +151,26 @@ Résultat de référence avant documentation : **68 tests réussis sur 68**.
 - erreurs de création affichées dans la boîte de dialogue plutôt que seulement dans le toast.
 
 Résultat automatisé : **71 tests réussis sur 71**.
+
+
+## Sprint G.2 — inventaire et véhicules connectés
+
+- session d'inventaire datée ;
+- snapshot théorique figé ;
+- comptage sauvegardé sans correction ;
+- reprise d'une session ouverte ;
+- inventaire incomplet bloqué ;
+- terminaison sans mutation Stock ;
+- validation finale créant uniquement des `ADJUSTMENT` ;
+- mouvement intervenu après le snapshot conservé correctement ;
+- véhicule reçu de Parc matériel ;
+- désactivation véhicule sans suppression de l'historique ;
+- chargement dépôt → véhicule par un seul `TRANSFER` ;
+- stock total entreprise inchangé par le chargement ;
+- équipe inconnue refusée ;
+- chantier inconnu refusé ;
+- `crewId` conservé sur une sortie équipe ;
+- QR conservé comme raccourci du même moteur ;
+- interface Inventaire déplacée dans Mon stock ;
+- connecteur Parc matériel préparé dans la démo Équipe & Planning ;
+- base existante Ángel enrichie en `stock@1.2.0`.
