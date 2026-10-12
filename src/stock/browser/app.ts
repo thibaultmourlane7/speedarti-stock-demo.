@@ -451,6 +451,25 @@ async function fillLocationSelects(): Promise<void> {
   }
 }
 
+async function fillConnectedReferenceSelects(): Promise<void> {
+  const crews = referenceDirectory.listCrews();
+  const chantiers = referenceDirectory.listChantiers();
+
+  const crewSelect = document.getElementById("movement-crew-select") as HTMLSelectElement | null;
+  if (crewSelect) {
+    crewSelect.innerHTML = crews.length
+      ? crews.map(crew => `<option value="${escapeHtml(crew.crewId)}">${escapeHtml(crew.name)}</option>`).join("")
+      : `<option value="">Aucune équipe reçue</option>`;
+  }
+
+  const chantierSelect = document.getElementById("movement-chantier-select") as HTMLSelectElement | null;
+  if (chantierSelect) {
+    chantierSelect.innerHTML = chantiers.length
+      ? chantiers.map(chantier => `<option value="${escapeHtml(chantier.chantierId)}">${escapeHtml(chantier.name)}</option>`).join("")
+      : `<option value="">Aucun chantier reçu</option>`;
+  }
+}
+
 async function renderDashboard(): Promise<void> {
   const summary = await service.dashboard();
   $("#stat-articles").textContent = String(summary.articleCount);
