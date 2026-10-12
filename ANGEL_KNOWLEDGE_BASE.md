@@ -180,3 +180,114 @@ Si plusieurs fournisseurs correspondent, Ángel peut les présenter mais ne choi
 La recherche Ángel reste une lecture.
 
 Une demande de devis ou de commande utilise ensuite les brouillons dédiés, avec validation humaine obligatoire.
+
+
+## Sprint G.2 — inventaire, véhicules et destinations
+
+Le pack Ángel Stock passe à **`stock@1.2.0`**.
+
+### Sources de vérité
+
+Ángel doit respecter cette hiérarchie :
+
+| Donnée | Source de vérité |
+|---|---|
+| Véhicules / engins | Parc matériel / Paramètres SpeedArti |
+| Équipes | Équipe & Planning |
+| Chantiers / interventions | Agenda / Chantier |
+| Identité produit | Catalogue |
+| Quantités / emplacements / mouvements | Stock |
+| Diffusion des alertes | Notifications |
+| KPI | Pilotage en lecture |
+
+Ángel ne recrée aucune de ces entités dans Stock.
+
+### Nouvelles intentions
+
+- `stock_vehicle_status`
+- `stock_vehicle_load`
+- `stock_vehicle_return`
+- `stock_inventory_create`
+- `stock_inventory_status`
+- `stock_inventory_difference`
+- `stock_inventory_finish`
+- `stock_material_destination`
+
+### Véhicules
+
+> Qu'est-ce qu'il y a dans le camion couvreur ?
+
+Ángel doit :
+
+1. résoudre le véhicule via Parc matériel ;
+2. récupérer son `vehicleId` ;
+3. lire l'emplacement Stock lié à ce `vehicleId` ;
+4. restituer uniquement les quantités réellement connues.
+
+> Mets 10 chevrons dans le camion couvreur.
+
+Ángel prépare un seul mouvement :
+
+```text
+Dépôt principal
+→ véhicule reçu de Parc matériel
+10 chevrons
+TRANSFER
+```
+
+Puis demande confirmation humaine.
+
+Ángel ne crée jamais un véhicule manquant.
+
+### Inventaire
+
+> Lance l'inventaire du dépôt.
+
+Ángel peut préparer une session d'inventaire datée.
+
+Le lancement fige le stock théorique à l'instant de création de la session.
+
+Le comptage physique :
+
+- est sauvegardé article par article ;
+- ne modifie jamais le Stock pendant la saisie ;
+- peut être repris plus tard.
+
+`Terminer l'inventaire` ne crée toujours aucun mouvement.
+
+Seule l'action humaine **Appliquer les corrections** produit les `ADJUSTMENT`.
+
+> Pourquoi j'ai trois chevrons d'écart ?
+
+Ángel peut citer :
+
+- quantité théorique figée ;
+- quantité comptée ;
+- écart ;
+- mouvements connus autour de la période.
+
+Si la cause n'est pas démontrable, Ángel doit répondre qu'elle est inconnue.
+
+### Destination d'une sortie
+
+La destination et le type de mouvement sont distincts.
+
+- véhicule → `TRANSFER` vers un véhicule Parc matériel ;
+- chantier → sortie liée à un chantier réellement reçu ;
+- équipe → sortie liée à une équipe réellement reçue d'Équipe & Planning ;
+- casse → `BREAKAGE` ;
+- perte → `LOSS` ;
+- retour → `SITE_RETURN` ou transfert selon l'emplacement physique réel.
+
+### QR / code-barres
+
+Le QR n'est pas un deuxième workflow.
+
+```text
+QR / code-barres / Ángel / bouton interface
+→ mêmes opérations métier Stock
+→ mêmes contrôles
+→ même historique
+```
+
+Un code scanné peut identifier le contexte ou préparer l'action, mais il ne contourne jamais la validation humaine.
