@@ -1503,10 +1503,54 @@ function wireSearch(): void {
   input.addEventListener("input",async()=>{search=input.value;await renderStock();});
 }
 function wireInventory(): void {
-  const select=$("#inventory-location-select") as HTMLSelectElement;
-  select.addEventListener("change",()=>{void renderInventory();});
-  $("#refresh-inventory-button").addEventListener("click",()=>{void renderInventory();});
+  const open = () => { void openInventoryManager().catch(error => showToast(explainError(error), true)); };
+  $("#create-inventory-button").addEventListener("click", open);
+  $("#create-inventory-inline-button").addEventListener("click", open);
+
+  const startForm = $("#inventory-start-form") as HTMLFormElement;
+  startForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    const data = new FormData(startForm);
+    try {
+      const session = await service.startInventorySession(String(data.get("locationId") ?? ""));
+      currentInventorySessionId = session.id;
+      await renderInventorySession();
+    } catch (error) {
+      showToast(explainError(error), true);
+    }
+  });
+
+  $("#inventory-complete-button").addEventListener("click", async () => {
+    if (!currentInventorySessionId) return;
+    try {
+      await service.completeInventorySession(currentInventorySessionId);
+      showToast("Inventaire terminé. Aucune correction n'a encore été appliquée.");
+      await renderInventorySession();
+    } catch (error) {
+      showToast(explainError(error), true);
+    }
+  });
+
+  $("#inventory-validate-button").addEventListener("click", async () => {
+    if (!currentInventorySessionId) return;
+    try {
+      const result = await service.validateInventoryAdjustments(currentInventorySessionId);
+      showToast(result.movements.length
+        ? `${result.movements.length} correction(s) ADJUSTMENT appliquée(s).`
+        : "Inventaire validé sans écart.");
+      currentInventorySessionId = null;
+      await refresh();
+      await renderInventorySession();
+    } catch (error) {
+      showToast(explainError(error), true);
+    }
+  });
 }
 
-async function main():Promise<void>{wireTabs();wireDialogs();wireForms();wireSecondaryFields();wireItemNameAutocomplete();wireDemoData();wireAngelSupplier();wireSupplierSearch();wireExpert();wireSearch();wireInventory();await service.initialize();await refresh();}
+function wireMovementDestination(): void {
+  $("#movement-destination-type").addEventListener("change", updateMovementDestinationFields);
+  updateMovementDestinationFields();
+}
+
+async function main():Promise<void>{wireTabs();wireDialogs();wireForms();wireSecondaryFields();wireItemNameAutocomplete();wireDemoData();wireAngelSupplier();wireSupplierSearch();wireExpert();wireSearch();wireInventory();wireMovementDestination();await service.initialize();await refresh();}
 main().catch(error=>{showToast(explainError(error),true);console.error(error);});
