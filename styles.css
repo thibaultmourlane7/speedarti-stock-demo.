@@ -27,3 +27,21 @@
 .name-suggestions button:hover,.name-suggestions button:focus{background:#eef6ff;color:#075dc7;outline:none}
 .condition-preview{background:#ecfdf5;border:1px solid #bbf7d0;color:#065f46;border-radius:12px;padding:11px 12px}
 .condition-preview strong,.condition-preview span{display:block}.condition-preview span{margin-top:3px;font-size:.88rem}
+
+.topbar-actions,.toolbar-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.inventory-session-dialog{width:min(920px,94vw);max-height:90vh;overflow:auto}
+#inventory-start-form{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:10px;align-items:end}
+.inventory-session-summary{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;background:#f8fbff;border:1px solid #d8eaff;border-radius:14px;padding:12px 14px;margin-bottom:12px}
+.inventory-session-summary strong,.inventory-session-summary span{display:block}
+.inventory-session-summary span{color:#64748b;font-size:.82rem;margin-top:3px}
+.inventory-session-kpis{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.inventory-session-kpis>span:not(.badge){background:#fff;border:1px solid #e3ebf5;border-radius:10px;padding:7px 9px}
+.inventory-session-row .inventory-count input:disabled{background:#f1f5f9;color:#475569}
+.connector-source-note{background:#eef6ff;border:1px solid #cfe4ff;border-radius:12px;padding:10px 12px;color:#334155;font-size:.84rem}
+#movement-destination-fields{display:grid;gap:10px;background:#f8fbff;border:1px solid #e3edf8;border-radius:14px;padding:12px}
+@media(max-width:760px){
+  .topbar-actions,.toolbar-actions{width:100%}
+  .topbar-actions .button,.toolbar-actions .button{flex:1}
+  #inventory-start-form{grid-template-columns:1fr}
+  .inventory-session-summary{flex-direction:column}
+}
