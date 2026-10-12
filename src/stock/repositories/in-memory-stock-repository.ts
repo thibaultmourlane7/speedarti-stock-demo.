@@ -16,6 +16,7 @@ export class InMemoryStockRepository implements StockRepository {
   private movements: StockMovement[] = [];
   private reservations = new Map<string, StockReservation>();
   private purchaseRequirements = new Map<string, StockPurchaseRequirement>();
+  private inventorySessions = new Map<string, InventorySession>();
   private sourceEvents = new Set<string>();
   private offcuts = new Map<string, StockOffcut>();
 
@@ -86,6 +87,18 @@ export class InMemoryStockRepository implements StockRepository {
       this.key(requirement.companyId, requirement.id),
       structuredClone(requirement),
     );
+  }
+
+  async getInventorySession(companyId: Id, sessionId: Id): Promise<InventorySession | null> {
+    return structuredClone(this.inventorySessions.get(this.key(companyId, sessionId)) ?? null);
+  }
+
+  async listInventorySessions(companyId: Id): Promise<InventorySession[]> {
+    return structuredClone([...this.inventorySessions.values()].filter(x => x.companyId === companyId));
+  }
+
+  async saveInventorySession(session: InventorySession): Promise<void> {
+    this.inventorySessions.set(this.key(session.companyId, session.id), structuredClone(session));
   }
 
   async hasProcessedSourceEvent(companyId: Id, sourceEventId: string): Promise<boolean> {
