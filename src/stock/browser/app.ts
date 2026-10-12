@@ -1090,18 +1090,34 @@ async function refresh(): Promise<void> {
   }
 }
 
+function updateMovementDestinationFields(): void {
+  const type = ($("#movement-destination-type") as HTMLSelectElement).value;
+  const chantierField = $("#movement-chantier-field") as HTMLElement;
+  const crewField = $("#movement-crew-field") as HTMLElement;
+  chantierField.hidden = type !== "chantier";
+  crewField.hidden = type !== "equipe";
+}
+
 async function openMovement(productId: string, mode: "entry" | "exit"): Promise<void> {
   const view = (await service.listItemViews()).find(x => x.item.id === productId); if (!view) return;
   const form = $("#movement-form") as HTMLFormElement;
   (form.elements.namedItem("productId") as HTMLInputElement).value = productId;
   (form.elements.namedItem("mode") as HTMLInputElement).value = mode;
   (form.elements.namedItem("quantity") as HTMLInputElement).value = "";
-  (form.elements.namedItem("chantierId") as HTMLInputElement).value = "";
+  const chantier = form.elements.namedItem("chantierId") as HTMLSelectElement | null;
+  const crew = form.elements.namedItem("crewId") as HTMLSelectElement | null;
+  if (chantier) chantier.selectedIndex = 0;
+  if (crew) crew.selectedIndex = 0;
   (form.elements.namedItem("reason") as HTMLInputElement).value = "";
+  const destinationType = form.elements.namedItem("destinationType") as HTMLSelectElement | null;
+  if (destinationType) destinationType.value = "chantier";
+  const destinationFields = $("#movement-destination-fields") as HTMLElement;
+  destinationFields.hidden = mode === "entry";
+  updateMovementDestinationFields();
   const loc = form.elements.namedItem("locationId") as HTMLSelectElement; if (view.item.mainLocationId) loc.value = view.item.mainLocationId;
   setUnitOptions(form.elements.namedItem("unit") as HTMLSelectElement, view.item);
   $("#movement-title").textContent = mode === "entry" ? "Entrée de stock" : "Sortie de stock";
-  $("#movement-eyebrow").textContent = mode === "entry" ? "Réception / ajout" : "Utilisation / chantier";
+  $("#movement-eyebrow").textContent = mode === "entry" ? "Réception / ajout" : "Destination du matériel";
   $("#movement-product").textContent = `${view.item.name} — ${quantity(view.snapshot.availableQuantity)} ${UNIT_LABELS[view.item.unit]} disponibles`;
   ($("#movement-dialog") as HTMLDialogElement).showModal();
 }
