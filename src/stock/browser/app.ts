@@ -1242,11 +1242,48 @@ function wireForms(): void {
   });
 
   const movementForm = $("#movement-form") as HTMLFormElement;
-  movementForm.addEventListener("submit", async event => { event.preventDefault(); const data=new FormData(movementForm); const mode=String(data.get("mode")??""); try {
-    const input={productId:String(data.get("productId")??""),quantity:Number(data.get("quantity")??0),unit:String(data.get("unit")??"piece") as StockUnit,locationId:String(data.get("locationId")??""),chantierId:String(data.get("chantierId")??"").trim()||null,reason:String(data.get("reason")??"").trim()||null};
-    if(mode==="entry") await service.recordEntry(input); else await service.recordExit(input);
-    closeDialog("movement-dialog"); showToast(mode==="entry"?"Entrée enregistrée.":"Sortie enregistrée."); await refresh();
-  }catch(error){showToast(explainError(error),true);} });
+  movementForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    const data = new FormData(movementForm);
+    const mode = String(data.get("mode") ?? "");
+    try {
+      let chantierId: string | null = null;
+      let crewId: string | null = null;
+      let destinationLabel = "";
+      if (mode === "exit") {
+        const destinationType = String(data.get("destinationType") ?? "consommation");
+        if (destinationType === "chantier") {
+          const chantier = referenceDirectory.requireChantier(String(data.get("chantierId") ?? ""));
+          chantierId = chantier.chantierId;
+          destinationLabel = `Chantier : ${chantier.name}`;
+        } else if (destinationType === "equipe") {
+          const crew = referenceDirectory.requireCrew(String(data.get("crewId") ?? ""));
+          crewId = crew.crewId;
+          destinationLabel = `Équipe : ${crew.name}`;
+        } else {
+          destinationLabel = "Consommé / autre sortie";
+        }
+      }
+
+      const reasonRaw = String(data.get("reason") ?? "").trim();
+      const input = {
+        productId: String(data.get("productId") ?? ""),
+        quantity: Number(data.get("quantity") ?? 0),
+        unit: String(data.get("unit") ?? "piece") as StockUnit,
+        locationId: String(data.get("locationId") ?? ""),
+        chantierId,
+        crewId,
+        reason: [destinationLabel, reasonRaw].filter(Boolean).join(" · ") || null,
+      };
+      if (mode === "entry") await service.recordEntry(input);
+      else await service.recordExit(input);
+      closeDialog("movement-dialog");
+      showToast(mode === "entry" ? "Entrée enregistrée." : "Sortie enregistrée avec sa destination.");
+      await refresh();
+    } catch (error) {
+      showToast(explainError(error), true);
+    }
+  });
 
   const transferForm = $("#transfer-form") as HTMLFormElement;
   transferForm.addEventListener("submit", async event => { event.preventDefault(); const data=new FormData(transferForm); try {
