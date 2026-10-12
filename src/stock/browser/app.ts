@@ -2,13 +2,14 @@ import { StockApplicationService } from "../application/stock-application-servic
 import { AngelSupplierSearchService } from "../angele/supplier-search";
 import { StockDomainError } from "../core/errors";
 import { secondaryQuantityView } from "../core/stock-conversion";
-import { StockItem, StockLocation, StockMovementType, StockSecondaryDefinition, StockUnit } from "../domain/types";
+import { InventorySession, StockItem, StockLocation, StockMovementType, StockSecondaryDefinition, StockUnit } from "../domain/types";
 import { loadBtpDemoData } from "../demo/demo-data";
 import { LocalStorageStockRepository } from "../repositories/local-storage-stock-repository";
 import { ExpertScanDraft, StockExpertScanService } from "../expert/scan-service";
 import { GenericSupplierDemoAdapter, IdeaBoisDemoAdapter } from "../suppliers/demo-adapters";
 import { SupplierStockService } from "../suppliers/supplier-service";
 import { SupplierActionDraft, SupplierAvailabilityView, SupplierStockStatus } from "../suppliers/types";
+import { StockReferenceDirectory } from "../integrations/reference-directory";
 
 const COMPANY_ID = "demo-company";
 const USER_ID = "demo-user";
@@ -19,6 +20,11 @@ supplierService.register(new IdeaBoisDemoAdapter());
 supplierService.register(new GenericSupplierDemoAdapter());
 const angelSupplierService = new AngelSupplierSearchService(supplierService);
 const expertScanService = new StockExpertScanService(service);
+const referenceDirectory = new StockReferenceDirectory();
+referenceDirectory.applyCrewSnapshot({ crewId: "crew-demo-couvreurs", name: "Équipe couvreurs — démo connecteur", active: true });
+referenceDirectory.applyCrewSnapshot({ crewId: "crew-demo-polyvalente", name: "Équipe polyvalente — démo connecteur", active: true });
+referenceDirectory.applyChantierSnapshot({ chantierId: "chantier-demo-dupont", name: "Chantier Dupont — démo connecteur", active: true });
+referenceDirectory.applyChantierSnapshot({ chantierId: "chantier-demo-renovation", name: "Rénovation toiture — démo connecteur", active: true });
 
 const $ = <T extends Element>(selector: string): T => {
   const element = document.querySelector(selector);
@@ -66,6 +72,7 @@ let search = "";
 let supplierSearch = "";
 let lastSupplierDraft: SupplierActionDraft | null = null;
 let currentScanDraft: ExpertScanDraft | null = null;
+let currentInventorySessionId: string | null = null;
 let expertCameraStream: MediaStream | null = null;
 let expertCameraFrame = 0;
 let toastTimer: number | null = null;
