@@ -188,8 +188,14 @@ test("une équipe ou un chantier inconnus sont refusés par le répertoire conne
 
   assert.equal(directory.requireCrew("crew-1").name, "Équipe 1");
   assert.equal(directory.requireChantier("site-1").name, "Chantier 1");
-  assert.throws(() => directory.requireCrew("crew-x"), StockDomainError);
-  assert.throws(() => directory.requireChantier("site-x"), StockDomainError);
+  assert.throws(
+    () => directory.requireCrew("crew-x"),
+    (error: unknown) => error instanceof StockDomainError && error.code === "VALIDATION_REQUIRED",
+  );
+  assert.throws(
+    () => directory.requireChantier("site-x"),
+    (error: unknown) => error instanceof StockDomainError && error.code === "VALIDATION_REQUIRED",
+  );
 });
 
 test("une sortie affectée à une équipe conserve crewId dans le mouvement", async () => {
