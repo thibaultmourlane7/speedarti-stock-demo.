@@ -10,6 +10,7 @@ import {
   STOCK_INBOUND_EVENTS,
 } from "../integrations/contracts";
 import { StockReferenceDirectory } from "../integrations/reference-directory";
+import { ANGEL_STOCK_INTENTS, ANGEL_STOCK_KNOWLEDGE_VERSION, ANGEL_STOCK_RULES } from "../angele/knowledge-pack";
 
 function setup() {
   const repo = new InMemoryStockRepository();
@@ -216,4 +217,15 @@ test("une sortie affectée à une équipe conserve crewId dans le mouvement", as
     reason: "Équipe : Équipe 1",
   });
   assert.equal(movement.crewId, "crew-1");
+});
+
+
+test("la base existante d'Ángel est enrichie pour G.2 sans pack parallèle", () => {
+  assert.equal(ANGEL_STOCK_KNOWLEDGE_VERSION, "stock@1.2.0");
+  assert.ok(ANGEL_STOCK_INTENTS.includes("stock_vehicle_load"));
+  assert.ok(ANGEL_STOCK_INTENTS.includes("stock_inventory_create"));
+  assert.ok(ANGEL_STOCK_INTENTS.includes("stock_inventory_difference"));
+  assert.ok(ANGEL_STOCK_RULES.some(rule => rule.knowledgeId === "stock.vehicle.source_of_truth"));
+  assert.ok(ANGEL_STOCK_RULES.some(rule => rule.knowledgeId === "stock.inventory.session"));
+  assert.ok(ANGEL_STOCK_RULES.some(rule => rule.knowledgeId === "stock.qr.single_engine"));
 });
