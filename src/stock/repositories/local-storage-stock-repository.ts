@@ -6,6 +6,7 @@ import {
   StockOffcut,
   StockPurchaseRequirement,
   StockReservation,
+  InventorySession,
 } from "../domain/types";
 import { StockRepository } from "./stock-repository";
 
