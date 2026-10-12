@@ -983,52 +983,111 @@ async function renderReservationsAndNeeds(): Promise<void> {
   }
 }
 
-async function renderInventory(): Promise<void> {
-  const select = $("#inventory-location-select") as HTMLSelectElement;
-  const locationId = select.value;
-  const list = $("#inventory-list") as HTMLDivElement;
-  if (!locationId) { list.innerHTML = `<div class="empty"><strong>Aucun emplacement</strong></div>`; return; }
-  const rows = await service.inventoryRows(locationId, search);
-  if (!rows.length) { list.innerHTML = `<div class="empty"><strong>Aucun article à inventorier</strong></div>`; return; }
-  list.innerHTML = rows.map(row => `
-    <article class="inventory-row" data-product-id="${escapeHtml(row.item.id)}">
-      <div class="inventory-main"><strong>${escapeHtml(row.item.name)}</strong><span>${row.reservedQuantity > 0 ? `${quantity(row.reservedQuantity)} réservé` : escapeHtml(row.item.family)}</span></div>
-      <div class="inventory-theoretical"><span>Théorique</span><strong>${quantity(row.theoreticalQuantity)} ${UNIT_LABELS[row.item.unit]}</strong></div>
-      <label class="inventory-count">Compté<input type="number" min="0" step="any" value="${row.theoreticalQuantity}" data-counted></label>
-      <div class="inventory-difference" data-difference>Écart : 0</div>
-      <button class="button secondary small" data-correct>Corriger le stock</button>
-    </article>`).join("");
+async function renderInventorySession(): Promise<void> {
+  const startArea = $("#inventory-start-area") as HTMLDivElement;
+  const sessionArea = $("#inventory-session-area") as HTMLDivElement;
+  const summary = $("#inventory-session-summary") as HTMLDivElement;
+  const list = $("#inventory-session-list") as HTMLDivElement;
+  const completeButton = $("#inventory-complete-button") as HTMLButtonElement;
+  const validateButton = $("#inventory-validate-button") as HTMLButtonElement;
 
-  list.querySelectorAll<HTMLElement>(".inventory-row").forEach(row => {
-    const productId = row.dataset.productId ?? "";
-    const input = row.querySelector<HTMLInputElement>("[data-counted]");
-    const diff = row.querySelector<HTMLElement>("[data-difference]");
-    const correct = row.querySelector<HTMLButtonElement>("[data-correct]");
-    if (!input || !diff || !correct) return;
-    const update = async () => {
-      const current = (await service.inventoryRows(locationId)).find(x => x.item.id === productId);
-      if (!current) return;
-      const counted = Number(input.value);
-      const delta = Number.isFinite(counted) ? counted - current.theoreticalQuantity : 0;
-      diff.textContent = `Écart : ${delta > 0 ? "+" : ""}${quantity(delta)} ${UNIT_LABELS[current.item.unit]}`;
-      diff.classList.toggle("positive", delta > 0); diff.classList.toggle("negative", delta < 0);
-    };
-    input.addEventListener("input", () => { void update(); });
-    correct.addEventListener("click", async () => {
-      try {
-        const counted = Number(input.value);
-        const result = await service.applyInventoryCount({ productId, locationId, countedQuantity: counted });
-        showToast(result.movement ? `Stock corrigé : écart ${result.difference > 0 ? "+" : ""}${quantity(result.difference)}.` : "Aucun écart à corriger.");
-        await refresh();
-      } catch (error) { showToast(explainError(error), true); }
+  if (!currentInventorySessionId) {
+    const sessions = await service.listInventorySessions();
+    const resumable = sessions.find(session => session.status === "OPEN")
+      ?? sessions.find(session => session.status === "COMPLETED");
+    currentInventorySessionId = resumable?.id ?? null;
+  }
+
+  if (!currentInventorySessionId) {
+    startArea.hidden = false;
+    sessionArea.hidden = true;
+    return;
+  }
+
+  const session = await service.getInventorySession(currentInventorySessionId);
+  const views = await service.listItemViews();
+  const itemMap = new Map(views.map(view => [view.item.id, view.item]));
+  const counted = session.counts.filter(row => row.countedQuantity !== null).length;
+  const differences = session.counts.filter(row =>
+    row.countedQuantity !== null && Math.abs(row.countedQuantity - row.theoreticalQuantity) > 1e-9
+  ).length;
+  const statusLabel = session.status === "OPEN"
+    ? "En cours"
+    : session.status === "COMPLETED"
+      ? "Comptage terminé — corrections non appliquées"
+      : "Validé";
+
+  startArea.hidden = session.status !== "VALIDATED";
+  sessionArea.hidden = false;
+  summary.innerHTML = `
+    <div><strong>${escapeHtml(session.locationName)}</strong><span>Démarré le ${dateLabel(session.createdAt)}</span></div>
+    <div class="inventory-session-kpis">
+      <span><strong>${counted}/${session.counts.length}</strong> comptés</span>
+      <span><strong>${differences}</strong> écart${differences > 1 ? "s" : ""}</span>
+      <span class="badge ${session.status === "OPEN" ? "info" : session.status === "COMPLETED" ? "low" : "good"}">${statusLabel}</span>
+    </div>
+  `;
+
+  list.innerHTML = session.counts.map(row => {
+    const item = itemMap.get(row.productId);
+    const name = item?.name ?? "Article indisponible";
+    const unit = item?.unit ?? row.unit;
+    const value = row.countedQuantity === null ? "" : String(row.countedQuantity);
+    const difference = row.countedQuantity === null ? null : row.countedQuantity - row.theoreticalQuantity;
+    return `
+      <article class="inventory-row inventory-session-row" data-product-id="${escapeHtml(row.productId)}">
+        <div class="inventory-main"><strong>${escapeHtml(name)}</strong><span>Snapshot du ${dateLabel(session.createdAt)}</span></div>
+        <div class="inventory-theoretical"><span>Théorique figé</span><strong>${quantity(row.theoreticalQuantity)} ${unitLabel(unit, row.theoreticalQuantity)}</strong></div>
+        <label class="inventory-count">Compté
+          <input type="number" min="0" step="any" value="${escapeHtml(value)}" data-counted ${session.status !== "OPEN" ? "disabled" : ""}>
+        </label>
+        <div class="inventory-difference ${difference !== null && difference > 0 ? "positive" : difference !== null && difference < 0 ? "negative" : ""}" data-difference>
+          ${difference === null ? "À compter" : `Écart : ${difference > 0 ? "+" : ""}${quantity(difference)} ${unitLabel(unit, difference)}`}
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  if (session.status === "OPEN") {
+    list.querySelectorAll<HTMLElement>(".inventory-session-row").forEach(row => {
+      const productId = row.dataset.productId ?? "";
+      const input = row.querySelector<HTMLInputElement>("[data-counted]");
+      if (!input) return;
+      input.addEventListener("change", async () => {
+        try {
+          if (input.value.trim() === "") return;
+          await service.saveInventorySessionCount(session.id, productId, Number(input.value));
+          await renderInventorySession();
+        } catch (error) {
+          showToast(explainError(error), true);
+        }
+      });
     });
-  });
+  }
+
+  completeButton.hidden = session.status !== "OPEN";
+  validateButton.hidden = session.status !== "COMPLETED";
+}
+
+async function openInventoryManager(): Promise<void> {
+  await fillLocationSelects();
+  currentInventorySessionId = null;
+  const sessions = await service.listInventorySessions();
+  const resumable = sessions.find(session => session.status === "OPEN")
+    ?? sessions.find(session => session.status === "COMPLETED");
+  currentInventorySessionId = resumable?.id ?? null;
+  await renderInventorySession();
+  openDialog("inventory-dialog");
 }
 
 async function refresh(): Promise<void> {
   await fillLocationSelects();
+  await fillConnectedReferenceSelects();
   await fillExpertSelects();
-  await Promise.all([renderDashboard(), renderStock(), renderAlerts(), renderSuppliers(), renderHistory(), renderLocations(), renderInventory(), renderReservationsAndNeeds(), renderVehicles()]);
+  await Promise.all([renderDashboard(), renderStock(), renderAlerts(), renderSuppliers(), renderHistory(), renderLocations(), renderReservationsAndNeeds(), renderVehicles()]);
+  if ((document.getElementById("inventory-dialog") as HTMLDialogElement | null)?.open) {
+    await renderInventorySession();
+  }
 }
 
 async function openMovement(productId: string, mode: "entry" | "exit"): Promise<void> {
