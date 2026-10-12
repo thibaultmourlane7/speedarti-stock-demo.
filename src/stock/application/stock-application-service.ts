@@ -3,6 +3,7 @@ import { convertQuantityToPrimary, validateSecondaryDefinition } from "../core/s
 import { StockEngine } from "../core/stock-engine";
 import {
   Id,
+  InventorySession,
   StockFamily,
   StockItem,
   StockLocation,
@@ -47,6 +48,16 @@ export interface CreateLocationInput {
   type: StockLocationType;
   chantierId?: Id | null;
   vehicleId?: Id | null;
+  registration?: string | null;
+  sourceModule?: string | null;
+}
+
+export interface SyncVehicleInput {
+  vehicleId: Id;
+  name: string;
+  registration?: string | null;
+  active: boolean;
+  sourceModule?: string;
 }
 
 export interface RecordMovementInput {
@@ -55,6 +66,7 @@ export interface RecordMovementInput {
   unit?: StockUnit;
   locationId: Id;
   chantierId?: Id | null;
+  crewId?: Id | null;
   reason?: string | null;
 }
 
@@ -227,6 +239,8 @@ export class StockApplicationService {
       type: input.type,
       chantierId: input.chantierId ?? null,
       vehicleId: input.vehicleId ?? null,
+      registration: text(input.registration) || null,
+      sourceModule: text(input.sourceModule) || null,
       active: true,
       createdAt: at,
       updatedAt: at,
@@ -327,6 +341,7 @@ export class StockApplicationService {
       movementType: "ENTRY",
       locationToId: input.locationId,
       chantierId: input.chantierId ?? null,
+      crewId: input.crewId ?? null,
       userId: this.userId,
       sourceModule: "stock_ui",
       sourceId: item.id,
@@ -491,6 +506,131 @@ export class StockApplicationService {
       .sort((a, b) => b.requirement.createdAt.localeCompare(a.requirement.createdAt));
   }
 
+  async startInventorySession(locationId: Id): Promise<InventorySession> {
+    const location = await this.repository.getLocation(this.companyId, locationId);
+    if (!location || !location.active) {
+      throw new StockDomainError("LOCATION_NOT_FOUND", "Emplacement d'inventaire introuvable.");
+    }
+
+    const existing = (await this.repository.listInventorySessions(this.companyId))
+      .find(session => session.status === "OPEN" && session.locationId === locationId);
+    if (existing) return existing;
+
+    const items = (await this.repository.listItems(this.companyId)).filter(item => item.active);
+    const counts = await Promise.all(items.map(async item => {
+      const snapshot = await this.engine.snapshot(this.companyId, item.id, locationId);
+      return {
+        productId: item.id,
+        locationId,
+        theoreticalQuantity: snapshot.physicalQuantity,
+        countedQuantity: null,
+        unit: item.unit,
+        countedAt: null,
+      };
+    }));
+
+    const at = this.now();
+    const session: InventorySession = {
+      id: this.id(),
+      companyId: this.companyId,
+      locationId,
+      locationName: location.name,
+      status: "OPEN",
+      counts,
+      createdBy: this.userId,
+      createdAt: at,
+      completedAt: null,
+      validatedAt: null,
+    };
+    await this.repository.saveInventorySession(session);
+    return session;
+  }
+
+  async listInventorySessions(): Promise<InventorySession[]> {
+    return (await this.repository.listInventorySessions(this.companyId))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async getInventorySession(sessionId: Id): Promise<InventorySession> {
+    const session = await this.repository.getInventorySession(this.companyId, sessionId);
+    if (!session) {
+      throw new StockDomainError("VALIDATION_REQUIRED", "Session d'inventaire introuvable.", { sessionId });
+    }
+    return session;
+  }
+
+  async saveInventorySessionCount(sessionId: Id, productId: Id, countedQuantity: number): Promise<InventorySession> {
+    if (!Number.isFinite(countedQuantity) || countedQuantity < 0) {
+      throw new StockDomainError("INVALID_QUANTITY", "La quantité comptée doit être positive ou nulle.");
+    }
+    const session = await this.getInventorySession(sessionId);
+    if (session.status !== "OPEN") {
+      throw new StockDomainError("VALIDATION_REQUIRED", "Cet inventaire n'est plus modifiable.");
+    }
+    const count = session.counts.find(row => row.productId === productId);
+    if (!count) {
+      throw new StockDomainError("PRODUCT_NOT_FOUND", "Article absent du snapshot d'inventaire.", { productId });
+    }
+    count.countedQuantity = countedQuantity;
+    count.countedAt = this.now();
+    await this.repository.saveInventorySession(session);
+    return session;
+  }
+
+  async completeInventorySession(sessionId: Id): Promise<InventorySession> {
+    const session = await this.getInventorySession(sessionId);
+    if (session.status !== "OPEN") return session;
+    const missing = session.counts.filter(row => row.countedQuantity === null);
+    if (missing.length) {
+      throw new StockDomainError(
+        "VALIDATION_REQUIRED",
+        `Il reste ${missing.length} article(s) à compter avant de terminer l'inventaire.`,
+        { missingProductIds: missing.map(row => row.productId) },
+      );
+    }
+    session.status = "COMPLETED";
+    session.completedAt = this.now();
+    await this.repository.saveInventorySession(session);
+    return session;
+  }
+
+  async validateInventoryAdjustments(sessionId: Id): Promise<{ session: InventorySession; movements: StockMovement[] }> {
+    const session = await this.getInventorySession(sessionId);
+    if (session.status !== "COMPLETED") {
+      throw new StockDomainError(
+        "VALIDATION_REQUIRED",
+        "L'inventaire doit être terminé avant de corriger le Stock.",
+      );
+    }
+
+    const movements: StockMovement[] = [];
+    for (const row of session.counts) {
+      if (row.countedQuantity === null) continue;
+      const difference = row.countedQuantity - row.theoreticalQuantity;
+      if (Math.abs(difference) <= EPSILON) continue;
+      const item = await this.requireItem(row.productId);
+      const movement = await this.engine.applyMovement({
+        companyId: this.companyId,
+        productId: item.id,
+        quantity: difference,
+        unit: item.unit,
+        movementType: "ADJUSTMENT",
+        locationFromId: difference < 0 ? session.locationId : null,
+        locationToId: difference > 0 ? session.locationId : null,
+        userId: this.userId,
+        sourceModule: "stock_inventory",
+        sourceId: session.id,
+        reason: `Correction inventaire ${session.locationName} · session ${session.id}`,
+      });
+      movements.push(movement);
+    }
+
+    session.status = "VALIDATED";
+    session.validatedAt = this.now();
+    await this.repository.saveInventorySession(session);
+    return { session, movements };
+  }
+
   async applyInventoryCount(input: InventoryCorrectionInput): Promise<InventoryCorrectionResult> {
     if (!Number.isFinite(input.countedQuantity) || input.countedQuantity < 0) {
       throw new StockDomainError("INVALID_QUANTITY", "La quantité comptée doit être positive ou nulle.");
@@ -574,12 +714,50 @@ export class StockApplicationService {
     if (!name) {
       throw new StockDomainError("INVALID_LOCATION", "Le nom du véhicule est obligatoire.");
     }
-    const registration = text(input.registration) || null;
     return this.createLocation({
       name,
       type: "vehicule",
-      vehicleId: registration,
+      vehicleId: `demo-local:${this.id()}`,
+      registration: text(input.registration) || null,
+      sourceModule: "stock_demo",
     });
+  }
+
+  async syncVehicleFromParcMateriel(input: SyncVehicleInput): Promise<StockLocation> {
+    const vehicleId = text(input.vehicleId);
+    const name = text(input.name);
+    if (!vehicleId || !name) {
+      throw new StockDomainError("INVALID_LOCATION", "vehicleId et nom sont obligatoires pour synchroniser un véhicule.");
+    }
+
+    const locations = await this.repository.listLocations(this.companyId);
+    const existing = locations.find(location => location.type === "vehicule" && location.vehicleId === vehicleId);
+    const at = this.now();
+    const location: StockLocation = existing
+      ? {
+          ...existing,
+          name,
+          registration: text(input.registration) || null,
+          sourceModule: text(input.sourceModule) || "parc_materiel",
+          active: input.active,
+          updatedAt: at,
+        }
+      : {
+          id: this.id(),
+          companyId: this.companyId,
+          name,
+          type: "vehicule",
+          chantierId: null,
+          vehicleId,
+          registration: text(input.registration) || null,
+          sourceModule: text(input.sourceModule) || "parc_materiel",
+          active: input.active,
+          createdAt: at,
+          updatedAt: at,
+        };
+
+    await this.repository.saveLocation(location);
+    return location;
   }
 
   async listVehicleStocks(): Promise<VehicleStockView[]> {
@@ -603,7 +781,7 @@ export class StockApplicationService {
 
       return {
         location,
-        registration: location.vehicleId ?? null,
+        registration: location.registration ?? (location.sourceModule === "stock_demo" ? null : location.vehicleId ?? null),
         referenceCount: lines.filter(line => line.snapshot.physicalQuantity > EPSILON).length,
         reservedReferenceCount: lines.filter(line => line.snapshot.reservedQuantity > EPSILON).length,
         lines,
@@ -770,6 +948,7 @@ export class StockApplicationService {
       movementType,
       locationFromId: input.locationId,
       chantierId: input.chantierId ?? null,
+      crewId: input.crewId ?? null,
       userId: this.userId,
       sourceModule: "stock_ui",
       sourceId: item.id,
