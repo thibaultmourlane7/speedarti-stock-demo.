@@ -9,7 +9,8 @@ Tous les connecteurs sont **contrats uniquement** au Sprint A.
 | Chiffrage | bidirectionnel | Chiffrage besoins ; Stock dispo | disponibilité, réservation |
 | Commandes / Achats | bidirectionnel | Commandes | besoins achat, réception validée |
 | Factures fournisseurs | entrant | Facture pour document | proposer une entrée, jamais auto |
-| Équipe & Planning | bidirectionnel | Planning pour demandes ; Stock dispo | dispo matériel, sortie brouillon |
+| Équipe & Planning | bidirectionnel | Planning pour équipes/demandes ; Stock dispo | équipes, dispo matériel, sortie brouillon |
+| Parc matériel / Paramètres | entrant | Parc matériel | identité véhicule, immatriculation, actif/inactif ; Stock garde seulement vehicleId et quantités |
 | Notifications | sortant | Stock événement ; Notifications diffusion | seuils, ruptures, écarts |
 | Ángel | bidirectionnel | Stock données | lecture + brouillons validés |
 | Comptabilité | sortant | Comptabilité pour règles de valorisation | mouvements/coûts matière |
@@ -145,3 +146,103 @@ Une donnée fournisseur ne crée jamais de mouvement Stock.
 Les actions `Demander un devis` et `Préparer commande` produisent uniquement des brouillons avec `validationRequired: true`.
 
 Un futur adaptateur ERP/API remplacera l'adaptateur démo sans modifier le moteur de mouvements Stock.
+
+
+## Sprint G.2 — connecteurs inventaire et véhicules
+
+### Audit lecture seule SpeedArti / Équipe & Planning
+
+La démo Équipe & Planning existante déclare déjà :
+
+```text
+vehiclesEquipment: Parc matériel
+```
+
+comme source de vérité des véhicules / engins.
+
+Elle possède également des réservations de ressources utilisées dans le brief chantier.
+
+Le catalogue de connecteurs de la démo Équipe & Planning ne déclarait toutefois pas encore explicitement `parc_materiel`. Le Sprint G.2 prépare ce contrat dans les dépôts de démonstration uniquement.
+
+Le vrai dépôt SpeedArti/GSTAI reste strictement en lecture seule.
+
+### Parc matériel → Stock
+
+Événements préparés :
+
+```text
+parc_materiel.vehicle.created
+parc_materiel.vehicle.updated
+parc_materiel.vehicle.disabled
+```
+
+Payload minimal :
+
+```text
+vehicleId
+name
+registration
+active
+```
+
+Stock crée ou met à jour uniquement un emplacement de type `vehicule` lié au `vehicleId`.
+
+Une désactivation rend le véhicule non sélectionnable mais ne supprime ni son emplacement ni l'historique de mouvements.
+
+### Équipe & Planning → Stock
+
+Événements préparés :
+
+```text
+team_planning.crew.snapshot
+team_planning.crew.updated
+team_planning.material.availability.requested
+team_planning.stock_exit.draft.requested
+```
+
+Une équipe inconnue doit être refusée : Stock ne crée pas une équipe pour satisfaire une sortie.
+
+### Agenda / Chantier → Stock
+
+Événements préparés :
+
+```text
+chantier.created
+chantier.updated
+chantier.closed
+chantier.stock.exit.requested
+chantier.stock.return.requested
+```
+
+Le chantier reste propriétaire de son identité.
+
+### Notifications
+
+Le Stock prépare les événements :
+
+- stock faible ;
+- rupture ;
+- écart d'inventaire ;
+- inventaire terminé ;
+- inventaire validé.
+
+La diffusion appartient au service Notifications.
+
+### Pilotage
+
+`stock.pilotage.kpi.updated` reste un flux sortant de lecture.
+
+KPI préparés :
+
+- articles ;
+- ruptures ;
+- stocks faibles ;
+- inventaires ouverts ;
+- écarts d'inventaire ;
+- matériel par véhicule.
+
+### QR
+
+Le QR ne possède aucun connecteur propre et ne duplique aucune logique.
+
+Il appelle les mêmes méthodes Stock que l'interface classique.
