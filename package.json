@@ -1,6 +1,6 @@
 {
   "name": "speedarti-stock-demo",
-  "version": "0.7.1-g1",
+  "version": "0.7.2-g2",
   "private": true,
   "description": "Démo autonome du module Stock SpeedArti. Aucun raccordement production.",
   "scripts": {
