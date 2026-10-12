@@ -11,7 +11,7 @@
 <div class="app-shell">
   <header class="topbar">
     <div><div class="brand">SpeedArti</div><h1>Stock</h1><p class="subtitle">Simple, clair, prêt pour le chantier.</p></div>
-    <button id="add-item-button" class="button primary">+ Ajouter un article</button>
+    <div class="topbar-actions"><button id="create-inventory-button" class="button secondary">Créer mon inventaire</button><button id="add-item-button" class="button primary">+ Ajouter un article</button></div>
   </header>
 
   <main>
@@ -29,7 +29,6 @@
       <button class="tab" data-tab="alerts">Alertes</button>
       <button class="tab" data-tab="suppliers">Stocks fournisseurs</button>
       <button class="tab" data-tab="needs">Réservations & achats</button>
-      <button class="tab" data-tab="inventory">Inventaire</button>
       <button class="tab" data-tab="history">Mouvements</button>
       <button class="tab" data-tab="expert">Stock Expert</button>
       <button class="tab" data-tab="locations">Emplacements</button>
@@ -38,7 +37,7 @@
     <section id="stock-panel" class="panel active">
       <div class="toolbar">
         <label class="search"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="Rechercher un produit, une référence…"></label>
-        <button id="load-demo-button" class="button ghost">Charger des exemples BTP</button>
+        <div class="toolbar-actions"><button id="create-inventory-inline-button" class="button secondary">Créer mon inventaire</button><button id="load-demo-button" class="button ghost">Charger des exemples BTP</button></div>
       </div>
       <div id="stock-list" class="stock-list"></div>
     </section>
@@ -92,15 +91,6 @@
       <div id="requirement-list" class="requirement-list"></div>
     </section>
 
-    <section id="inventory-panel" class="panel">
-      <div class="section-heading">
-        <div><h2>Inventaire</h2><p>Comparez le stock théorique au stock réellement compté.</p></div>
-        <div class="inventory-toolbar"><select id="inventory-location-select"></select><button id="refresh-inventory-button" class="button secondary">Actualiser</button></div>
-      </div>
-      <div class="info-banner">Une correction d'inventaire crée toujours un mouvement <strong>ADJUSTMENT</strong>. La quantité n'est jamais écrasée silencieusement.</div>
-      <div id="inventory-list" class="inventory-list"></div>
-    </section>
-
     <section id="history-panel" class="panel">
       <div class="section-heading"><div><h2>Mouvements</h2><p>Entrées, sorties, transferts, pertes, casse, retours et ajustements restent tracés.</p></div></div>
       <div id="history-list" class="history-list"></div>
@@ -135,15 +125,13 @@
 
         <section class="expert-card">
           <div>
-            <span class="eyebrow">Véhicules</span>
-            <h3>Créer un véhicule</h3>
-            <p>Chaque véhicule est un emplacement Stock distinct, avec ses quantités réellement chargées.</p>
+            <span class="eyebrow">Véhicules connectés</span>
+            <h3>Parc matériel SpeedArti</h3>
+            <p>Les véhicules viennent des Paramètres / Parc matériel. Le Stock ne recrée pas leur identité.</p>
           </div>
-          <form id="vehicle-create-form" class="expert-inline-form three">
-            <input name="name" placeholder="Ex. Camion couvreur" required>
-            <input name="registration" placeholder="Immatriculation (facultatif)">
-            <button class="button secondary">Ajouter</button>
-          </form>
+          <div class="connector-source-note"><strong>Source de vérité :</strong> Parc matériel · lecture seule côté Stock.</div>
+          <button id="sync-demo-vehicles-button" type="button" class="button secondary">Simuler la synchronisation Parc matériel</button>
+          <small>Démo uniquement : ce bouton injecte un véhicule fictif pour tester le connecteur.</small>
         </section>
       </div>
 
@@ -170,20 +158,9 @@
       <section class="expert-card expert-wide">
         <div>
           <span class="eyebrow">QR SpeedArti</span>
-          <h3>Préparer un code d'action</h3>
-          <p>Le contenu ci-dessous est le payload métier à encoder dans un QR. Il reste inutilisable tant qu'un humain ne confirme pas l'action après scan.</p>
+          <h3>Raccourci vers les mêmes actions Stock</h3>
+          <p>Le QR n'est plus un second parcours. Il identifie l'article ou le contexte, puis utilise les mêmes boutons Entrée, Sortie et Transfert que l'interface classique.</p>
         </div>
-        <form id="expert-qr-form" class="expert-qr-form">
-          <label>Article<select name="productId" id="expert-qr-product"></select></label>
-          <label>Action<select name="action"><option value="ENTRY">Entrée</option><option value="EXIT">Sortie</option><option value="TRANSFER">Transfert</option><option value="SITE_RETURN">Retour chantier</option></select></label>
-          <label>Quantité<input name="quantity" type="number" min="0.000001" step="any" value="1" required></label>
-          <label>Unité<select name="unit" id="expert-qr-unit"></select></label>
-          <label>Depuis<select name="fromLocationId" id="expert-qr-from"></select></label>
-          <label>Vers<select name="toLocationId" id="expert-qr-to"></select></label>
-          <label>Chantier <span class="optional">(facultatif)</span><input name="chantierId"></label>
-          <button class="button secondary">Préparer</button>
-        </form>
-        <div id="expert-qr-output" class="expert-qr-output" hidden></div>
       </section>
     </section>
 
@@ -193,6 +170,27 @@
     </section>
   </main>
 </div>
+
+<dialog id="inventory-dialog">
+  <div class="dialog-form inventory-session-dialog">
+    <div class="dialog-head"><div><span class="eyebrow">Inventaire daté</span><h2>Créer mon inventaire</h2></div><button type="button" class="icon-button" data-close="inventory-dialog">×</button></div>
+    <div id="inventory-start-area">
+      <p class="field-help">Le stock théorique est figé à la date de départ. Le comptage n'écrit rien dans le Stock tant que vous n'avez pas validé les corrections.</p>
+      <form id="inventory-start-form">
+        <label>Emplacement<select id="inventory-location-select" name="locationId" required></select></label>
+        <button class="button primary">Démarrer / reprendre l'inventaire</button>
+      </form>
+    </div>
+    <div id="inventory-session-area" hidden>
+      <div id="inventory-session-summary" class="inventory-session-summary"></div>
+      <div id="inventory-session-list" class="inventory-list"></div>
+      <div class="dialog-actions">
+        <button id="inventory-complete-button" class="button secondary" type="button">Terminer mon inventaire</button>
+        <button id="inventory-validate-button" class="button primary" type="button" hidden>Appliquer les corrections</button>
+      </div>
+    </div>
+  </div>
+</dialog>
 
 <dialog id="item-dialog"><form id="item-form" method="dialog" class="dialog-form" novalidate>
   <div class="dialog-head"><div><span class="eyebrow">Nouvel article</span><h2>Ajouter au stock</h2></div><button type="button" class="icon-button" data-close="item-dialog">×</button></div>
@@ -255,7 +253,18 @@
   <div class="dialog-head"><div><span class="eyebrow" id="movement-eyebrow">Mouvement</span><h2 id="movement-title">Entrée</h2></div><button type="button" class="icon-button" data-close="movement-dialog">×</button></div>
   <input type="hidden" name="productId"><input type="hidden" name="mode"><div class="movement-product" id="movement-product"></div>
   <div class="two-cols"><label>Quantité<input name="quantity" type="number" min="0.000001" step="any" required></label><label>Saisir en<select name="unit" id="movement-unit-select"></select></label></div><label>Emplacement<select name="locationId" id="movement-location-select"></select></label>
-  <label>Chantier <span class="optional">(facultatif)</span><input name="chantierId"></label><label>Motif <span class="optional">(facultatif)</span><input name="reason"></label>
+  <div id="movement-destination-fields" hidden>
+    <label>Destination / motif
+      <select name="destinationType" id="movement-destination-type">
+        <option value="chantier">Chantier</option>
+        <option value="equipe">Équipe</option>
+        <option value="consommation">Consommé / autre sortie</option>
+      </select>
+    </label>
+    <label id="movement-chantier-field">Chantier<select name="chantierId" id="movement-chantier-select"></select></label>
+    <label id="movement-crew-field" hidden>Équipe<select name="crewId" id="movement-crew-select"></select></label>
+  </div>
+  <label>Motif <span class="optional">(facultatif)</span><input name="reason"></label>
   <div class="dialog-actions"><button type="button" class="button ghost" data-close="movement-dialog">Annuler</button><button class="button primary">Valider</button></div>
 </form></dialog>
 
