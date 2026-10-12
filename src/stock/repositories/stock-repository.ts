@@ -6,6 +6,7 @@ import {
   StockOffcut,
   StockPurchaseRequirement,
   StockReservation,
+  InventorySession,
 } from "../domain/types";
 
 export interface StockRepository {
@@ -28,6 +29,10 @@ export interface StockRepository {
 
   listPurchaseRequirements(companyId: Id): Promise<StockPurchaseRequirement[]>;
   savePurchaseRequirement(requirement: StockPurchaseRequirement): Promise<void>;
+
+  getInventorySession(companyId: Id, sessionId: Id): Promise<InventorySession | null>;
+  listInventorySessions(companyId: Id): Promise<InventorySession[]>;
+  saveInventorySession(session: InventorySession): Promise<void>;
 
   hasProcessedSourceEvent(companyId: Id, sourceEventId: string): Promise<boolean>;
   markSourceEventProcessed(companyId: Id, sourceEventId: string): Promise<void>;
