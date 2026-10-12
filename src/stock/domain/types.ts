@@ -96,6 +96,8 @@ export interface StockLocation {
   type: StockLocationType;
   chantierId?: Id | null;
   vehicleId?: Id | null;
+  registration?: string | null;
+  sourceModule?: string | null;
   active: boolean;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
