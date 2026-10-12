@@ -1,6 +1,6 @@
 import { StockDomainError } from "../core/errors";
 import { StockEngine } from "../core/stock-engine";
-import { Id, StockItem } from "../domain/types";
+import { Id, StockItem, StockLocation } from "../domain/types";
 import { StockRepository } from "../repositories/stock-repository";
 import {
   AvailabilityRequestPayload,
@@ -15,6 +15,7 @@ import {
   STOCK_INBOUND_EVENTS,
   STOCK_OUTBOUND_EVENTS,
   StockExitDraftPayload,
+  VehicleSnapshotPayload,
 } from "./contracts";
 
 /**
@@ -53,6 +54,11 @@ export class StockIntegrationService {
         return this.reservationReleaseDraft(
           envelope as unknown as IntegrationEnvelope<ReservationReleaseRequestPayload>,
         );
+
+      case STOCK_INBOUND_EVENTS.PARC_MATERIEL_VEHICLE_CREATED:
+      case STOCK_INBOUND_EVENTS.PARC_MATERIEL_VEHICLE_UPDATED:
+      case STOCK_INBOUND_EVENTS.PARC_MATERIEL_VEHICLE_DISABLED:
+        return this.vehicleSnapshot(envelope as unknown as IntegrationEnvelope<VehicleSnapshotPayload>);
 
       default:
         throw new StockDomainError(
@@ -186,6 +192,70 @@ export class StockIntegrationService {
       metadata: {
         requestEventId: envelope.eventId,
         noStockMutation: true,
+      },
+      occurredAt: this.now(),
+      eventId: this.id(),
+    });
+  }
+
+  private async vehicleSnapshot(
+    envelope: IntegrationEnvelope<VehicleSnapshotPayload>,
+  ): Promise<IntegrationEnvelope<Record<string, unknown>>> {
+    const payload = envelope.payload;
+    const vehicleId = String(payload.vehicleId ?? "").trim();
+    const name = String(payload.name ?? "").trim();
+    if (!vehicleId || !name) {
+      throw new StockDomainError("INVALID_LOCATION", "vehicleId et nom sont obligatoires pour un véhicule Parc matériel.");
+    }
+
+    const locations = await this.repository.listLocations(envelope.companyId);
+    const existing = locations.find(location => location.type === "vehicule" && location.vehicleId === vehicleId);
+    const active = envelope.eventType === STOCK_INBOUND_EVENTS.PARC_MATERIEL_VEHICLE_DISABLED
+      ? false
+      : payload.active !== false;
+    const at = this.now();
+
+    const location: StockLocation = existing
+      ? {
+          ...existing,
+          name,
+          registration: payload.registration ?? null,
+          sourceModule: SPEEDARTI_MODULES.PARC_MATERIEL,
+          active,
+          updatedAt: at,
+        }
+      : {
+          id: this.id(),
+          companyId: envelope.companyId,
+          name,
+          type: "vehicule",
+          chantierId: null,
+          vehicleId,
+          registration: payload.registration ?? null,
+          sourceModule: SPEEDARTI_MODULES.PARC_MATERIEL,
+          active,
+          createdAt: at,
+          updatedAt: at,
+        };
+
+    await this.repository.saveLocation(location);
+
+    return createEnvelope({
+      eventType: STOCK_OUTBOUND_EVENTS.VEHICLE_STOCK_UPDATED,
+      source: SPEEDARTI_MODULES.STOCK,
+      target: envelope.source,
+      companyId: envelope.companyId,
+      correlationId: envelope.correlationId ?? envelope.eventId,
+      payload: {
+        vehicleId,
+        stockLocationId: location.id,
+        active: location.active,
+        sourceOfTruth: SPEEDARTI_MODULES.PARC_MATERIEL,
+      },
+      metadata: {
+        requestEventId: envelope.eventId,
+        vehicleIdentityReadOnly: true,
+        noStockQuantityMutation: true,
       },
       occurredAt: this.now(),
       eventId: this.id(),
