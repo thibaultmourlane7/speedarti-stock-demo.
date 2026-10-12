@@ -11,23 +11,25 @@ import {
 import { StockRepository } from "./stock-repository";
 
 interface StoredState {
-  version: 3;
+  version: 4;
   items: StockItem[];
   locations: StockLocation[];
   movements: StockMovement[];
   reservations: StockReservation[];
   purchaseRequirements: StockPurchaseRequirement[];
+  inventorySessions: InventorySession[];
   sourceEvents: string[];
   offcuts: StockOffcut[];
 }
 
 const EMPTY: StoredState = {
-  version: 3,
+  version: 4,
   items: [],
   locations: [],
   movements: [],
   reservations: [],
   purchaseRequirements: [],
+  inventorySessions: [],
   sourceEvents: [],
   offcuts: [],
 };
@@ -44,7 +46,7 @@ export class LocalStorageStockRepository implements StockRepository {
       if (!raw) return structuredClone(EMPTY);
       const parsed = JSON.parse(raw) as Partial<Omit<StoredState, "version">> & { version?: number };
 
-      if (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== 3) {
+      if (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== 3 && parsed.version !== 4) {
         return structuredClone(EMPTY);
       }
 
@@ -53,12 +55,13 @@ export class LocalStorageStockRepository implements StockRepository {
         : [];
 
       return {
-        version: 3,
+        version: 4,
         items,
         locations: Array.isArray(parsed.locations) ? parsed.locations : [],
         movements: Array.isArray(parsed.movements) ? parsed.movements : [],
         reservations: Array.isArray(parsed.reservations) ? parsed.reservations : [],
         purchaseRequirements: Array.isArray(parsed.purchaseRequirements) ? parsed.purchaseRequirements : [],
+        inventorySessions: Array.isArray(parsed.inventorySessions) ? parsed.inventorySessions : [],
         sourceEvents: Array.isArray(parsed.sourceEvents) ? parsed.sourceEvents : [],
         offcuts: Array.isArray(parsed.offcuts) ? parsed.offcuts : [],
       };
@@ -154,6 +157,26 @@ export class LocalStorageStockRepository implements StockRepository {
     );
     if (index >= 0) state.purchaseRequirements[index] = structuredClone(requirement);
     else state.purchaseRequirements.push(structuredClone(requirement));
+    this.save(state);
+  }
+
+  async getInventorySession(companyId: Id, sessionId: Id): Promise<InventorySession | null> {
+    return structuredClone(this.load().inventorySessions.find(
+      x => x.companyId === companyId && x.id === sessionId,
+    ) ?? null);
+  }
+
+  async listInventorySessions(companyId: Id): Promise<InventorySession[]> {
+    return structuredClone(this.load().inventorySessions.filter(x => x.companyId === companyId));
+  }
+
+  async saveInventorySession(session: InventorySession): Promise<void> {
+    const state = this.load();
+    const index = state.inventorySessions.findIndex(
+      x => x.companyId === session.companyId && x.id === session.id,
+    );
+    if (index >= 0) state.inventorySessions[index] = structuredClone(session);
+    else state.inventorySessions.push(structuredClone(session));
     this.save(state);
   }
 
