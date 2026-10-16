@@ -126,3 +126,24 @@ Exemples de double lecture d'un même stock :
 - 3,85 boîtes de 200 vis = 3 boîtes complètes + 170 vis = 770 vis.
 
 Il n'existe toujours qu'une seule quantité source de vérité ; les équivalences sont calculées.
+
+
+## Dossier d'intégration Anne-Sophie
+
+Le pack de préparation à l'intégration production se trouve dans :
+
+```text
+docs/integration/
+```
+
+Ordre de lecture recommandé :
+
+1. `ANNE_SOPHIE_STOCK_HANDOFF.md`
+2. `CONNECTOR_MASTER_MATRIX_2026-10-16.md`
+3. `STOCK_PRODUCTION_ACTIVATION_PLAN.md`
+4. `STOCK_DATA_MIGRATION_PLAN.md`
+5. `STOCK_EVENTS_CONTRACT_V1.md`
+6. `ANGEL_KNOWLEDGE_MASTER_REGISTRY.md`
+7. `ANGEL_STOCK_1_3_SPEC.md`
+
+Ce dossier a été préparé à partir d'un audit en lecture seule du vrai dépôt SpeedArti et des modules GitHub connexes. Aucune écriture n'a été effectuée dans `GSTAI-Sp/speedarti-v2`.
